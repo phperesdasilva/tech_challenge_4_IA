@@ -8,6 +8,7 @@ from statsmodels.graphics.tsaplots import month_plot, quarter_plot, plot_acf, pl
 from statsmodels.tsa.seasonal import seasonal_decompose
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import acf, pacf
+import numpy as np
 
 #Inserir ticker:
 ticker = input(f'Insira o ticker desejado:')
@@ -74,62 +75,97 @@ fig.update_layout(
 fig.show()
 
 # Preparar dados
-monthly = data2['y'].resample('ME').mean()
-quarterly = data2['y'].resample('QE').mean()
-acf_vals = acf(data2['y'], nlags=100)
+df_temp = pd.DataFrame({'value': data2['y'].values}, index=data2.index)
+df_temp['month'] = df_temp.index.month
+monthly_avg = df_temp.groupby('month')['value'].mean()
+months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+df_temp['quarter'] = df_temp.index.quarter
+quarterly_avg = df_temp.groupby('quarter')['value'].mean()
+quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+
+# ACF e PACF - SEM return_confint
+acf_vals = acf(data2['y'], nlags=100, fft=True)
 pacf_vals = pacf(data2['y'], nlags=100)
+lags = np.arange(len(acf_vals))
+
+# Calcular intervalo de confiança manualmente (95%)
+n = len(data2['y'])
+ci_upper = 1.96 / np.sqrt(n)
+ci_lower = -1.96 / np.sqrt(n)
 
 # Criar mosaico 2x2
 fig = make_subplots(
     rows=2, cols=2,
-    subplot_titles=('Monthly Plot', 'Quarterly Plot', 'ACF', 'PACF'),
+    subplot_titles=('Month Plot', 'Quarter Plot', 'ACF', 'PACF'),
     vertical_spacing=0.12,
     horizontal_spacing=0.1
 )
 
 # Month plot
 fig.add_trace(
-    go.Scatter(x=monthly.index, y=monthly.values, mode='lines+markers', name='Monthly'),
+    go.Scatter(x=months, y=monthly_avg.values, mode='lines+markers',
+              name='Monthly', line=dict(color='blue', width=2), marker=dict(size=8)),
     row=1, col=1
 )
 
 # Quarter plot
 fig.add_trace(
-    go.Scatter(x=quarterly.index, y=quarterly.values, mode='lines+markers', name='Quarterly'),
+    go.Scatter(x=quarters, y=quarterly_avg.values, mode='lines+markers',
+              name='Quarterly', line=dict(color='green', width=2), marker=dict(size=8)),
     row=1, col=2
 )
 
-# ACF
+# ACF com intervalo de confiança
 fig.add_trace(
-    go.Scatter(x=list(range(len(acf_vals))), y=acf_vals, mode='lines+markers', name='ACF'),
+    go.Scatter(x=lags, y=acf_vals, mode='markers',
+              name='ACF', marker=dict(color='blue', size=6)),
     row=2, col=1
 )
+# Linhas verticais para ACF
+for lag in lags:
+    fig.add_trace(
+        go.Scatter(x=[lag, lag], y=[0, acf_vals[lag]], mode='lines',
+                  line=dict(color='blue', width=1), showlegend=False, hoverinfo='skip'),
+        row=2, col=1
+    )
+# Área de confiança ACF
+fig.add_hrect(y0=ci_lower, y1=ci_upper, fillcolor='lightblue', opacity=0.3,
+             line_width=0, row=2, col=1)
+fig.add_hline(y=0, line_dash='dash', line_color='black', row=2, col=1)
 
-# PACF
+# PACF com intervalo de confiança
 fig.add_trace(
-    go.Scatter(x=list(range(len(pacf_vals))), y=pacf_vals, mode='lines+markers', name='PACF'),
+    go.Scatter(x=lags, y=pacf_vals, mode='markers',
+              name='PACF', marker=dict(color='green', size=6)),
     row=2, col=2
 )
-
-# Adicionar linha zero em ACF e PACF
-fig.add_hline(y=0, line_dash='dash', line_color='black', row=2, col=1)
+# Linhas verticais para PACF
+for lag in lags:
+    fig.add_trace(
+        go.Scatter(x=[lag, lag], y=[0, pacf_vals[lag]], mode='lines',
+                  line=dict(color='green', width=1), showlegend=False, hoverinfo='skip'),
+        row=2, col=2
+    )
+# Área de confiança PACF
+fig.add_hrect(y0=ci_lower, y1=ci_upper, fillcolor='lightblue', opacity=0.3,
+             line_width=0, row=2, col=2)
 fig.add_hline(y=0, line_dash='dash', line_color='black', row=2, col=2)
 
-# Configurar layout
+# Layout
 fig.update_layout(
     height=800,
     title_text=f'Análise de Série Temporal - {ticker}',
     showlegend=False
 )
 
-# Adicionar títulos dos eixos
-fig.update_xaxes(title_text='Data', row=1, col=1)
-fig.update_xaxes(title_text='Data', row=1, col=2)
+fig.update_xaxes(title_text='Mês', row=1, col=1)
+fig.update_xaxes(title_text='Trimestre', row=1, col=2)
 fig.update_xaxes(title_text='Lag', row=2, col=1)
 fig.update_xaxes(title_text='Lag', row=2, col=2)
 
-fig.update_yaxes(title_text='Preço', row=1, col=1)
-fig.update_yaxes(title_text='Preço', row=1, col=2)
+fig.update_yaxes(title_text='Preço (Média)', row=1, col=1)
+fig.update_yaxes(title_text='Preço (Média)', row=1, col=2)
 fig.update_yaxes(title_text='ACF', row=2, col=1)
 fig.update_yaxes(title_text='PACF', row=2, col=2)
 
