@@ -53,7 +53,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
 train_model(model, optimizer, criterion, epochs, x_train, y_train)
 
-y_test_pred, y_test, test_rmse, test_mae, test_mape = evaluate_model(df, model, ticker, dataset, x_test, y_test)
+y_test_pred, y_test, test_rmse, test_mae, test_mape = evaluate_model(model, dataset, x_test, y_test)
 
 fig = plt.figure(figsize=(12,10))
 gs = fig.add_gridspec(5,1)
@@ -66,9 +66,9 @@ plt.xlabel('Date')
 plt.ylabel('Price')
 
 ax2 = fig.add_subplot(gs[4,0])
-ax2.axhline(test_rmse, color='blue', linestyle='--', label='RMSE')
-ax2.axhline(test_mae, color='green', linestyle='--', label='MAE')
-ax2.axhline(test_mape, color='pink', linestyle='--', label='MAPE')
+ax2.axhline(test_rmse, color='blue', linestyle='--', label=f'RMSE: {test_rmse:.2f}')
+ax2.axhline(test_mae, color='green', linestyle='--', label=f'MAE: {test_mae:.2f}')
+ax2.axhline(test_mape, color='pink', linestyle='--', label=f'MAPE: {test_mape:.2f}')
 ax2.plot(df[-len(y_test):].index, abs(y_test - y_test_pred), 'r', label = 'Prediction Error')
 ax2.legend()
 plt.title('Prediction Error')

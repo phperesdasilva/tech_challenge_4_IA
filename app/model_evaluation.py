@@ -7,13 +7,13 @@ def train_model(model, optimizer, criterion, epochs, x_train, y_train):
         loss = criterion(y_train_pred, y_train)
 
         if epoch%1 == 0:
-            print(epoch, loss.item())
+            print(f'epoch: {epoch} / {epochs} === loss:{loss.item():.5f}')
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-def evaluate_model(df, model, ticker, dataset, x_test, y_test):
+def evaluate_model(model, dataset, x_test, y_test):
     model.eval()
 
     y_test_pred = model(x_test)
