@@ -10,13 +10,13 @@ from model_evaluation import train_model, evaluate_model
 
 
 # Configurações para download e pré-processamento dos dados
-ticker = 'AAPL'
-start_date = '2010-01-01'
+ticker = 'MSFT'
+start_date = '2025-01-01'
 #end_date = '2024-01-01'
 
 # Configurações do modelo LSTM
 device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
-hidden_size = 64
+hidden_size = 32
 num_layers = 2
 dropout = 0.2
 
@@ -24,7 +24,7 @@ prediction_period = 1
 lookback_period = 30
 
 batch_size = 32
-epochs = 100
+epochs = 200
 
 dataset = DatasetManager(ticker=ticker, start_date=start_date)
 
@@ -49,7 +49,7 @@ model = StockLSTM(
 ).to(device)
 
 criterion = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 train_model(model, optimizer, criterion, epochs, x_train, y_train)
 
