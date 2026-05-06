@@ -28,7 +28,7 @@ y_test_scaled = scaler.transform(y_test.reshape(-1, 1)).flatten()
 #Separar em sequências para o LSTM - Treino
 X_train_list = []
 y_train_list = []
-lookback =180
+lookback = 60
 horizonte = 15
 for i in range(len(y_train_scaled)-lookback-horizonte+1):
     X_train_list.append(y_train_scaled[i:(i+lookback)])
@@ -37,16 +37,16 @@ for i in range(len(y_train_scaled)-lookback-horizonte+1):
 #Separar em sequências para o LSTM - Teste
 X_test_list = []
 y_test_list = []
-lookback = 180
+lookback = 60
 horizonte = 15
 for i in range(len(y_test_scaled)-lookback-horizonte+1):
     X_test_list.append(y_test_scaled[i:(i+lookback)])
     y_test_list.append(y_test_scaled[i+lookback:i+lookback+horizonte])
 
 # Converter para numpy arrays
-X_train = np.array(X_train_list).reshape(-1,180 , 1)
+X_train = np.array(X_train_list).reshape(-1, 60, 1)
 y_train = np.array(y_train_list)
-X_test = np.array(X_test_list).reshape(-1,180, 1)
+X_test = np.array(X_test_list).reshape(-1, 60, 1)
 y_test = np.array(y_test_list)
 
 #Converter para tensor PyTorch:
@@ -60,7 +60,7 @@ train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=100, num_layers=2, output_size=15):
+    def __init__(self, input_size=1, hidden_size=50, num_layers=2, output_size=15):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
@@ -75,15 +75,20 @@ model = LSTM()
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-for epoch in range(300):
+for epoch in range(200):
+    epoch_loss = 0.0
+    num_batches = 0
     for X_batch, y_batch in train_loader:
         optimizer.zero_grad()
         y_pred = model(X_batch)
         loss = criterion(y_pred, y_batch)
         loss.backward()
         optimizer.step()
+        epoch_loss +=loss.item()
+        num_batches +=1
+    epoch_loss_avg = epoch_loss / num_batches
     if (epoch + 1) % 10 == 0:
-        print(f'Epoch {epoch + 1}, Loss: {epoch_loss / num_batches:.4f}')
+        print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
 
 model.eval()
 with torch.no_grad():
