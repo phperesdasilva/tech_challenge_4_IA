@@ -7,6 +7,9 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_percentage_error
 
+torch.manual_seed(42)
+np.random.seed(42)
+
 #Abri csv
 data = pd.read_csv('BBAS3_historico.csv')
 df = pd.DataFrame(data)
@@ -60,7 +63,7 @@ train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, num_layers=2, output_size=15):
+    def __init__(self, input_size=1, hidden_size=80, num_layers=2, output_size=15):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
@@ -166,4 +169,3 @@ fig.update_layout(
 )
 
 fig.show()
-
