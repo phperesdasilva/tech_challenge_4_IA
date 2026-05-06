@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.preprocessing import MinMaxScaler
+from datetime import date, timedelta
+ 
 
 class DatasetManager:
     def __init__(self, ticker: str, start_date: str, end_date: str=None):
@@ -77,4 +79,23 @@ class DatasetManager:
         feature_list = df.columns.tolist()
         features = [feature[0] for feature in feature_list if len(feature)>1]
         return features
+
+    def get_api_tensor(self, lookback: int, device: torch.device = torch.device('cpu')) -> torch.Tensor:
+        df = self.download_data()
+        features_to_remove = ['Open', 'High', 'Low', 'Volume']
+        df = self.remove_features(df, features_to_remove)
+        df = df.dropna()
+        scaled_df = self.normalize_data(df)
+        window = scaled_df.tail(lookback)
+        if len(window) < lookback:
+            raise ValueError('Janela de dados insuficiente para montar o tensor de entrada.')
+
+        arr = window.to_numpy(dtype=np.float32)
+        # Ensure the NumPy array is writable and contiguous before converting to a torch tensor
+        if not arr.flags.writeable:
+            arr = arr.copy()
+        arr = np.ascontiguousarray(arr)
+        tensor = torch.from_numpy(arr).unsqueeze(0).to(device)
+        return tensor
+
     
