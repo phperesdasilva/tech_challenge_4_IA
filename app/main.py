@@ -57,7 +57,7 @@ y_test_pred, y_test, test_rmse, test_mae, test_mape = evaluate_model(model, data
 
 pth_path = "trained_model.pth"
 torch.save(model.state_dict(), pth_path)
-print(f"Pesos salvos em {pth_path}")
+print(f"Model saved in: {pth_path}")
 
 fig = plt.figure(figsize=(12,10))
 gs = fig.add_gridspec(5,1)
