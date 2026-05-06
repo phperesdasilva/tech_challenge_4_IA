@@ -5,32 +5,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=100, num_layers=2, output_size=15):
-        super(LSTM, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])
-        return out
-
-print("Carregando dados históricos...")
-df = pd.read_csv('BBAS3_historico.csv')
-close_prices = df['Close'].values.reshape(-1, 1)
-
-print(df.tail(10))
-
-scaler = MinMaxScaler(feature_range=(0, 1))
-scaler.fit(close_prices)
-import torch
-import torch.nn as nn
-import pandas as pd
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-
-class LSTM(nn.Module):
-    def __init__(self, input_size=1, hidden_size=100, num_layers=2, output_size=15):
+    def __init__(self, input_size=1, hidden_size=50, num_layers=2, output_size=15):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
@@ -49,32 +24,11 @@ print(df.tail(10))
 scaler = MinMaxScaler(feature_range=(0, 1))
 scaler.fit(close_prices)
 
-seq_len = 180
+seq_len = 60
 scaled_data = scaler.transform(close_prices)
 last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, 1)
 
-model = LSTM(input_size=1, hidden_size=100, num_layers=2, output_size=15)
-model.load_state_dict(torch.load('modelo_lstm.pth', map_location='cpu'))
-model.eval()
-
-print("Realizando previsões multi-step para os próximos 7 dias útil...")
-
-seq_tensor = torch.FloatTensor(last_sequence)
-with torch.no_grad():
-    pred = model(seq_tensor)
-
-predictions = pred.cpu().detach().numpy()[0]
-actual_predictions = scaler.inverse_transform(predictions.reshape(-1, 1))
-
-print("\nPrevisões para os próximos 15 dias útil:")
-print("Dia\tPrevisão (R$)")
-for i, pred_val in enumerate(actual_predictions.flatten(), 1):
-    print(f"{i}\t{pred_val:.2f}")
-seq_len = 180
-scaled_data = scaler.transform(close_prices)
-last_sequence = scaled_data[-seq_len:].reshape(1, seq_len, 1)
-
-model = LSTM(input_size=1, hidden_size=100, num_layers=2, output_size=15)
+model = LSTM(input_size=1, hidden_size=50, num_layers=2, output_size=15)
 model.load_state_dict(torch.load('modelo_lstm.pth', map_location='cpu'))
 model.eval()
 
