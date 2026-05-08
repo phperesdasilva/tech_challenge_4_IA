@@ -1,43 +1,31 @@
 import yfinance as yf
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import torch
-from sklearn.preprocessing import MinMaxScaler
-from datetime import date, timedelta
- 
 
 class DatasetManager:
-    def __init__(self, ticker: str, start_date: str, end_date: str=None):
+    def __init__(self, ticker: str, years: int):
         self.ticker = ticker
-        self.start_date = start_date
-        self.end_date = end_date
+        self.years = years
         self.scaler = MinMaxScaler(feature_range=(0, 1))
 
     def download_data(self):
-        data = yf.download(self.ticker, start=self.start_date, end=self.end_date)
+        df = yf.download(self.ticker, period=f'{self.years}y')
+        data = pd.DataFrame(df).reset_index()
+        data['Date'] = data['Date'].astype(str)
         return data
     
-    def split_data(self, df, features, train_pct):
+    def split_data(self, df, test_feature, train_pct):
         
-        split = int(train_pct*len(df[features]))
+        split = int(train_pct*len(df[test_feature]))
         df_train = df.iloc[:split]
         df_test = df.iloc[split:]
-        y_train = df_train[features].values
-        y_test = df_test[features].values
+        y_train = df_train[test_feature].values
+        y_test = df_test[test_feature].values
 
         return df_train, y_train, df_test, y_test
-    
-    def invert_transform_data(self, y_train_pred=None, y_train=None, y_test_pred=None, y_test=None):
-        if y_train_pred is not None:
-            y_train_pred = self.close_scaler.inverse_transform(y_train_pred.detach().cpu().numpy())
-        if y_train is not None:
-            y_train = self.close_scaler.inverse_transform(y_train.detach().cpu().numpy())
-        if y_test_pred is not None:
-            y_test_pred = self.close_scaler.inverse_transform(y_test_pred.detach().cpu().numpy())
-        if y_test is not None:
-            y_test = self.close_scaler.inverse_transform(y_test.detach().cpu().numpy())
-        return y_train_pred, y_train, y_test_pred, y_test
-    
+
     def preprocess_data(self, df):
         df['7_day_MA'] = df['Close'].rolling(window=7).mean()  
         df['21_day_MA'] = df['Close'].rolling(window=21).mean()  
@@ -50,8 +38,8 @@ class DatasetManager:
         df.dropna()
         return df
     
-    def remove_features(self, df, features_to_remove):
-        df = df.drop(columns=features_to_remove)
+    def filter_features(self, df, features_to_keep):
+        df = df[features_to_keep]
         return df
     
     def normalize_data(self, y_train, y_test):
@@ -65,22 +53,28 @@ class DatasetManager:
         features = [feature[0] for feature in feature_list if len(feature)>1]
         return features
 
-    def get_api_tensor(self, lookback: int, device: torch.device = torch.device('cpu')) -> torch.Tensor:
-        df = self.download_data()
-        features_to_remove = ['Open', 'High', 'Low', 'Volume']
-        df = self.remove_features(df, features_to_remove)
-        df = df.dropna()
-        scaled_df = self.normalize_data(df)
-        window = scaled_df.tail(lookback)
-        if len(window) < lookback:
-            raise ValueError('Janela de dados insuficiente para montar o tensor de entrada.')
+    def create_train_test_sequences(self, lookback_period, prediction_period, y_train_scaled, y_test_scaled):
+        
+        x_train_list = []
+        y_train_list = []
+        for i in range(len(y_train_scaled)-lookback_period-prediction_period+1):
+            x_train_list.append(y_train_scaled[i:(i+lookback_period)])
+            y_train_list.append(y_train_scaled[i+lookback_period:i+lookback_period+prediction_period])
 
-        arr = window.to_numpy(dtype=np.float32)
-        # Ensure the NumPy array is writable and contiguous before converting to a torch tensor
-        if not arr.flags.writeable:
-            arr = arr.copy()
-        arr = np.ascontiguousarray(arr)
-        tensor = torch.from_numpy(arr).unsqueeze(0).to(device)
-        return tensor
+        x_test_list = []
+        y_test_list = []
+        for i in range(len(y_test_scaled)-lookback_period-prediction_period+1):
+            x_test_list.append(y_test_scaled[i:(i+lookback_period)])
+            y_test_list.append(y_test_scaled[i+lookback_period:i+lookback_period+prediction_period])
 
-    
+        x_train = np.array(x_train_list).reshape(-1, 60, 1)
+        y_train = np.array(y_train_list)
+        x_test = np.array(x_test_list).reshape(-1, 60, 1)
+        y_test = np.array(y_test_list)
+
+        x_train_tensor = torch.FloatTensor(x_train)
+        y_train_tensor = torch.FloatTensor(y_train)
+        x_test_tensor = torch.FloatTensor(x_test)
+        y_test_tensor = torch.FloatTensor(y_test)
+
+        return x_train_tensor, y_train_tensor, x_test_tensor, y_test_tensor

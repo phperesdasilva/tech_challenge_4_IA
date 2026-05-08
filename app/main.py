@@ -1,21 +1,13 @@
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('TkAgg')  # Use interactive backend
 
 from dataset import DatasetManager
 from lstm import StockLSTM
 from model_evaluation import train_model, evaluate_model
 
+ticker = 'PETR4.SA'
+years = 5
 
-# Configurações para download e pré-processamento dos dados
-ticker = 'MSFT'
-start_date = '2025-01-01'
-#end_date = '2024-01-01'
-
-# Configurações do modelo LSTM
 device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 input_size = 1
@@ -29,22 +21,21 @@ lookback_period = 30
 batch_size = 32
 epochs = 200
 
-dataset = DatasetManager(ticker=ticker, start_date=start_date)
+dataset = DatasetManager(ticker=ticker, years=years)
 
-# data = pd.read_csv('BBAS3_historico.csv')
-# df_test = pd.DataFrame(data) #=======> test
+df = dataset.download_data()
 
-df = dataset.download_data(5)
-features_to_remove = ['Open', 'High', 'Low', 'Volume']
-#df = dataset.preprocess_data(df)
-df = dataset.remove_features(df, features_to_remove)
+features_to_keep = ['Date', 'Close']
+df = dataset.filter_features(df, features_to_keep)
 
 features = dataset.get_features(df)
 input_size = len(features)
 
-scaled_data = dataset.normalize_data(df)
+df_train, y_train, df_test, y_test = dataset.split_data(df, 'Close', 0.8)
 
-x_train, y_train, x_test, y_test = dataset.split_data(scaled_data, features, 0.8 ,lookback_period, device)
+y_train_scaled, y_test_scaled = dataset.normalize_data(y_train, y_test)
+
+x_train_tensor, y_train_tensor, x_test_tensor, y_test_tensor = dataset.create_train_test_sequences(lookback_period, prediction_period, y_train_scaled, y_test_scaled)
 
 model = StockLSTM(
     input_size=input_size, 
@@ -57,32 +48,4 @@ model = StockLSTM(
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-train_model(model, optimizer, criterion, epochs, x_train, y_train)
 
-y_test_pred, y_test, test_rmse, test_mae, test_mape = evaluate_model(model, dataset, x_test, y_test)
-
-pth_path = "trained_model.pth"
-torch.save(model.state_dict(), pth_path)
-print(f"Model saved in: {pth_path}")
-
-fig = plt.figure(figsize=(12,10))
-gs = fig.add_gridspec(5,1)
-ax1 = fig.add_subplot(gs[:3, 0])
-ax1.plot(df.iloc[-len(y_test):].index, y_test, color='blue', label='Actual Price')
-ax1.plot(df.iloc[-len(y_test):].index, y_test_pred, color='green', label='Predicted Price')
-ax1.legend()
-plt.title(f"{ticker} price prediction")
-plt.xlabel('Date')
-plt.ylabel('Price')
-
-ax2 = fig.add_subplot(gs[4,0])
-ax2.axhline(test_rmse, color='blue', linestyle='--', label=f'RMSE: {test_rmse:.2f}')
-ax2.axhline(test_mae, color='green', linestyle='--', label=f'MAE: {test_mae:.2f}')
-ax2.axhline(test_mape, color='pink', linestyle='--', label=f'MAPE: {test_mape:.2f}')
-ax2.plot(df[-len(y_test):].index, abs(y_test - y_test_pred), 'r', label = 'Prediction Error')
-ax2.legend()
-plt.title('Prediction Error')
-plt.xlabel('Date')
-plt.ylabel('Error')
-
-plt.show()
