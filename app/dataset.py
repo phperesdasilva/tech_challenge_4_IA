@@ -11,31 +11,21 @@ class DatasetManager:
         self.ticker = ticker
         self.start_date = start_date
         self.end_date = end_date
-        self.scaler = None
-        self.close_scaler = None
-        self.close_scaler = None
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
 
     def download_data(self):
         data = yf.download(self.ticker, start=self.start_date, end=self.end_date)
         return data
     
-    def split_data(self, df, features, train_pct, lookback, device):
-        data = []
+    def split_data(self, df, features, train_pct):
+        
+        split = int(train_pct*len(df[features]))
+        df_train = df.iloc[:split]
+        df_test = df.iloc[split:]
+        y_train = df_train[features].values
+        y_test = df_test[features].values
 
-        for i in range(len(df) - lookback):
-            data.append(df[features][i:i+lookback])
-
-        data = np.array(data)
-
-        train_size = int(train_pct*len(data))
-
-        x_train = torch.from_numpy(data[:train_size, :-1, :]).type(torch.Tensor).to(device)
-        y_train = torch.from_numpy(data[:train_size, -1, :]).type(torch.Tensor).to(device)
-
-        x_test = torch.from_numpy(data[train_size:, :-1, :]).type(torch.Tensor).to(device)
-        y_test = torch.from_numpy(data[train_size:, -1, :]).type(torch.Tensor).to(device)
-
-        return x_train, y_train, x_test, y_test
+        return df_train, y_train, df_test, y_test
     
     def invert_transform_data(self, y_train_pred=None, y_train=None, y_test_pred=None, y_test=None):
         if y_train_pred is not None:
@@ -64,16 +54,11 @@ class DatasetManager:
         df = df.drop(columns=features_to_remove)
         return df
     
-    def normalize_data(self, df):
-        self.scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_array = self.scaler.fit_transform(df)
-        scaled_df = pd.DataFrame(scaled_array, columns=df.columns, index=df.index)
-
-        self.close_scaler = MinMaxScaler(feature_range=(0, 1))
-        self.close_scaler.fit(df[['Close']])
-
-        scaled_df = scaled_df.dropna()
-        return scaled_df
+    def normalize_data(self, y_train, y_test):
+        self.scaler.fit(y_train.reshape(-1, 1))
+        y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
+        y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
+        return y_train_scaled, y_test_scaled
     
     def get_features(self, df):
         feature_list = df.columns.tolist()

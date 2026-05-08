@@ -1,5 +1,6 @@
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')  # Use interactive backend
@@ -30,7 +31,10 @@ epochs = 200
 
 dataset = DatasetManager(ticker=ticker, start_date=start_date)
 
-df = dataset.download_data()
+# data = pd.read_csv('BBAS3_historico.csv')
+# df_test = pd.DataFrame(data) #=======> test
+
+df = dataset.download_data(5)
 features_to_remove = ['Open', 'High', 'Low', 'Volume']
 #df = dataset.preprocess_data(df)
 df = dataset.remove_features(df, features_to_remove)
