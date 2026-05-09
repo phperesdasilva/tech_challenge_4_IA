@@ -38,10 +38,10 @@ y_train_scaled, y_test_scaled = dataset.normalize_data(y_train, y_test)
 x_train, y_train, x_test, y_test = dataset.create_train_test_sequences(lookback_period, prediction_period, y_train_scaled, y_test_scaled)
 
 
-x_train_tensor = torch.FloatTensor(x_train)
-y_train_tensor = torch.FloatTensor(y_train)
-x_test_tensor = torch.FloatTensor(x_test)
-y_test_tensor = torch.FloatTensor(y_test)
+x_train_tensor = torch.FloatTensor(x_train).to(device)
+y_train_tensor = torch.FloatTensor(y_train).to(device)
+x_test_tensor = torch.FloatTensor(x_test).to(device)
+y_test_tensor = torch.FloatTensor(y_test).to(device)
 
 model = StockLSTM(
     input_size=input_size, 
@@ -61,6 +61,8 @@ for epoch in range(200):
     epoch_loss = 0.0
     num_batches = 0
     for X_batch, y_batch in train_loader:
+        X_batch = X_batch.to(device)
+        y_batch = y_batch.to(device)
         optimizer.zero_grad()
         y_pred = model(X_batch)
         loss = criterion(y_pred, y_batch)
@@ -75,9 +77,9 @@ for epoch in range(200):
 model.eval()
 
 with torch.no_grad():
-    y_pred_test = model(x_test_tensor)
+    y_pred_test = model(x_test_tensor.to(device))
 
-y_pred_test = y_pred_test.numpy()
+y_pred_test = y_pred_test.cpu().numpy()
 
 y_train_real = dataset.inverse_transform(y_train)
 y_pred_real = dataset.inverse_transform(y_pred_test)
