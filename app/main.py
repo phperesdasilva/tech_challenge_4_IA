@@ -3,7 +3,7 @@ import torch
 
 from dataset import DatasetManager
 from lstm import StockLSTM
-from model_evaluation import train_model, evaluate_model
+from torch.utils.data import TensorDataset,DataLoader
 
 ticker = 'PETR4.SA'
 years = 5
@@ -35,7 +35,13 @@ df_train, y_train, df_test, y_test = dataset.split_data(df, 'Close', 0.8)
 
 y_train_scaled, y_test_scaled = dataset.normalize_data(y_train, y_test)
 
-x_train_tensor, y_train_tensor, x_test_tensor, y_test_tensor = dataset.create_train_test_sequences(lookback_period, prediction_period, y_train_scaled, y_test_scaled)
+x_train, y_train, x_test, y_test = dataset.create_train_test_sequences(lookback_period, prediction_period, y_train_scaled, y_test_scaled)
+
+
+x_train_tensor = torch.FloatTensor(x_train)
+y_train_tensor = torch.FloatTensor(y_train)
+x_test_tensor = torch.FloatTensor(x_test)
+y_test_tensor = torch.FloatTensor(y_test)
 
 model = StockLSTM(
     input_size=input_size, 
@@ -48,4 +54,38 @@ model = StockLSTM(
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+train_dataset = TensorDataset(x_train_tensor, y_train_tensor)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
+for epoch in range(200):
+    epoch_loss = 0.0
+    num_batches = 0
+    for X_batch, y_batch in train_loader:
+        optimizer.zero_grad()
+        y_pred = model(X_batch)
+        loss = criterion(y_pred, y_batch)
+        loss.backward()
+        optimizer.step()
+        epoch_loss +=loss.item()
+        num_batches +=1
+    epoch_loss_avg = epoch_loss / num_batches
+    if (epoch + 1) % 10 == 0:
+        print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
+
+model.eval()
+
+with torch.no_grad():
+    y_pred_test = model(x_test_tensor)
+
+y_pred_test = y_pred_test.numpy()
+
+y_train_real = dataset.inverse_transform(y_train)
+y_pred_real = dataset.inverse_transform(y_pred_test)
+y_test_real = dataset.inverse_transform(y_test)
+
+mape = mean_absolute_percentage_error(y_test_real, y_pred_real)
+print(f'MAPE: {mape:.4f}')
+
+model_path = 'lstm_model_weights.pth'
+torch.save(model.state_dict(),model_path)
+print(f'Model saved to {model_path}')

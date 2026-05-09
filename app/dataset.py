@@ -4,11 +4,15 @@ from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import torch
 
+torch.manual_seed(42)
+np.random.seed(42)
+
 class DatasetManager:
     def __init__(self, ticker: str, years: int):
         self.ticker = ticker
         self.years = years
         self.scaler = MinMaxScaler(feature_range=(0, 1))
+
 
     def download_data(self):
         df = yf.download(self.ticker, period=f'{self.years}y')
@@ -43,10 +47,9 @@ class DatasetManager:
         return df
     
     def normalize_data(self, y_train, y_test):
-        scaler = MinMaxScaler(feature_range=(0, 1)) #teste sem o self.scaler
-        scaler.fit(y_train.reshape(-1, 1))
-        y_train_scaled = scaler.transform(y_train.reshape(-1, 1)).flatten()
-        y_test_scaled = scaler.transform(y_test.reshape(-1, 1)).flatten()
+        self.scaler.fit(y_train.reshape(-1, 1))
+        y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
+        y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
         return y_train_scaled, y_test_scaled
     
     def get_features(self, df):
@@ -73,9 +76,7 @@ class DatasetManager:
         x_test = np.array(x_test_list).reshape(-1, 60, 1)
         y_test = np.array(y_test_list)
 
-        x_train_tensor = torch.FloatTensor(x_train)
-        y_train_tensor = torch.FloatTensor(y_train)
-        x_test_tensor = torch.FloatTensor(x_test)
-        y_test_tensor = torch.FloatTensor(y_test)
-
-        return x_train_tensor, y_train_tensor, x_test_tensor, y_test_tensor
+        return x_train, y_train, x_test, y_test
+    
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data.reshape(-1, 1)).reshape(data.shape)
