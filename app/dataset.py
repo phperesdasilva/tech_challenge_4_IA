@@ -43,9 +43,10 @@ class DatasetManager:
         return df
     
     def normalize_data(self, y_train, y_test):
-        self.scaler.fit(y_train.reshape(-1, 1))
-        y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
-        y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
+        scaler = MinMaxScaler(feature_range=(0, 1)) #teste sem o self.scaler
+        scaler.fit(y_train.reshape(-1, 1))
+        y_train_scaled = scaler.transform(y_train.reshape(-1, 1)).flatten()
+        y_test_scaled = scaler.transform(y_test.reshape(-1, 1)).flatten()
         return y_train_scaled, y_test_scaled
     
     def get_features(self, df):

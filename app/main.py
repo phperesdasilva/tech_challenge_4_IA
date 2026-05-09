@@ -15,8 +15,8 @@ hidden_size = 32
 num_layers = 2
 dropout = 0.2
 
-prediction_period = 1
-lookback_period = 30
+prediction_period = 15
+lookback_period = 60
 
 batch_size = 32
 epochs = 200
