@@ -1,6 +1,9 @@
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
 
+import plotly.express as px
+import pandas as pd
+
 from dataset import DatasetManager
 from lstm import StockLSTM
 from torch.utils.data import TensorDataset,DataLoader
@@ -31,7 +34,7 @@ df = dataset.filter_features(df, features_to_keep)
 features = dataset.get_features(df)
 input_size = len(features)
 
-df_train, y_train, df_test, y_test = dataset.split_data(df, 'Close', 0.8)
+df_train, y_train, df_test, y_test, split = dataset.split_data(df, 'Close', 0.8)
 
 y_train_scaled, y_test_scaled = dataset.normalize_data(y_train, y_test)
 
@@ -88,6 +91,73 @@ y_test_real = dataset.inverse_transform(y_test)
 mape = mean_absolute_percentage_error(y_test_real, y_pred_real)
 print(f'MAPE: {mape:.4f}')
 
+mae = mean_absolute_error(y_test_real, y_pred_real)
+print(f'MAE: {mae:.4f}')
+
+rmse = root_mean_squared_error(y_test_real, y_pred_real)
+print(f'RMSE: {rmse:.4f}')
+
 model_path = 'lstm_model_weights.pth'
 torch.save(model.state_dict(),model_path)
 print(f'Model saved to {model_path}')
+
+#####################
+# parte não testada #
+#####################
+
+# Alinhar datas com sequências
+train_start_idx = lookback_period
+train_end_idx = split - prediction_period + 1
+test_start_idx = split + lookback_period
+
+test_dates = df['Date'].iloc[test_start_idx:test_start_idx + len(y_pred_real)].values
+
+train_dates = df['Date'].iloc[train_start_idx:train_end_idx].values
+
+# Criar DataFrames com valores REAIS (desnormalizados)
+df_train_full = pd.DataFrame({
+    'Date': train_dates,
+    'Price': y_train_real[:,0].flatten(),
+    'Type': 'Treino'
+})
+
+df_test_full = pd.DataFrame({
+    'Date': test_dates,
+    'Price': y_test_real[:,0].flatten(),
+    'Type': 'Real (Teste)'
+})
+
+df_pred_full = pd.DataFrame({
+    'Date': test_dates,
+    'Price': y_pred_real[:,0].flatten(),
+    'Type': 'Previsto'
+})
+
+# Preencher a lacuna no gráfico SEM viés no modelo
+gap_start_idx = split
+gap_end_idx = split + lookback_period
+
+gap_dates = df['Date'].iloc[gap_start_idx:gap_end_idx].values
+gap_prices = df['Close'].iloc[gap_start_idx:gap_end_idx].values
+
+df_gap = pd.DataFrame({
+    'Date': gap_dates,
+    'Price': gap_prices,
+    'Type': 'Real (Teste)'
+})
+
+df_plot = pd.concat([df_train_full, df_gap, df_test_full, df_pred_full], ignore_index=True)
+
+fig = px.line(df_plot, x='Date', y='Price', color='Type',
+              title='LSTM: Previsão de Preço de Ação',
+              labels={'Price': 'Preço (R$)', 'Date': 'Data', 'Type': 'Tipo'})
+
+fig.update_layout(
+    xaxis_title='Data',
+    yaxis_title='Preço (R$)',
+    hovermode='x unified',
+    template='plotly_white',
+    height=600
+)
+
+fig.show()

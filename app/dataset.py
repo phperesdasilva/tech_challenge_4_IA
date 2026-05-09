@@ -13,7 +13,6 @@ class DatasetManager:
         self.years = years
         self.scaler = MinMaxScaler(feature_range=(0, 1))
 
-
     def download_data(self):
         df = yf.download(self.ticker, period=f'{self.years}y')
         data = pd.DataFrame(df).reset_index()
@@ -28,7 +27,7 @@ class DatasetManager:
         y_train = df_train[test_feature].values
         y_test = df_test[test_feature].values
 
-        return df_train, y_train, df_test, y_test
+        return df_train, y_train, df_test, y_test, split
 
     def preprocess_data(self, df):
         df['7_day_MA'] = df['Close'].rolling(window=7).mean()  

@@ -11,7 +11,7 @@ torch.manual_seed(42)
 np.random.seed(42)
 
 #Abri csv
-data = pd.read_csv('BBAS3_historico.csv')
+data = pd.read_csv('bbas3_historico.csv')
 df = pd.DataFrame(data)
 df = df[['Date','Close']]
 
