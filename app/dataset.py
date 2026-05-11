@@ -2,7 +2,6 @@ import yfinance as yf
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
-from curl_cffi import requests
 import torch
 
 torch.manual_seed(42)
@@ -15,8 +14,7 @@ class DatasetManager:
         self.scaler = MinMaxScaler(feature_range=(0, 1))
 
     def download_data(self):
-        session = requests.Session(impersonate='chrome')
-        df = yf.download(self.ticker, period=f'{self.years}y', session=session)
+        df = yf.download(self.ticker, period=f'{self.years}y')
         data = pd.DataFrame(df).reset_index()
         data['Date'] = data['Date'].astype(str)
         return data
