@@ -13,7 +13,6 @@ years = 5
 
 device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-input_size = 1
 hidden_size = 32
 num_layers = 2
 dropout = 0.2
