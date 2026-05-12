@@ -8,13 +8,13 @@ torch.manual_seed(42)
 np.random.seed(42)
 
 class DatasetManager:
-    def __init__(self, ticker: str, years: int):
-        self.ticker = ticker
+    def __init__(self, tickers: list[str], years: int):
+        self.tickers = tickers
         self.years = years
         self.scaler = MinMaxScaler(feature_range=(0, 1))
 
     def download_data(self):
-        df = yf.download(self.ticker, period=f'{self.years}y')
+        df = yf.download(self.tickers, period=f'{self.years}y')
         data = pd.DataFrame(df).reset_index()
         data['Date'] = data['Date'].astype(str)
         return data

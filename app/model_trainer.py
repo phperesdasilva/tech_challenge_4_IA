@@ -2,9 +2,6 @@ from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error,
 import torch
 import mlflow
 
-import plotly.express as px
-import pandas as pd
-
 from dataset import DatasetManager
 from lstm import StockLSTM
 from torch.utils.data import TensorDataset,DataLoader
@@ -12,7 +9,7 @@ from torch.utils.data import TensorDataset,DataLoader
 MLFLOW_TRACKING_URI = 'http://localhost:3050'
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-ticker = 'PETR4.SA'
+tickers = ['PETR4.SA']
 years = 5
 
 device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,7 +26,7 @@ lookback_period = 60
 batch_size = 32
 epochs = 200
 
-dataset = DatasetManager(ticker=ticker, years=years)
+dataset = DatasetManager(tickers=tickers, years=years)
 
 df = dataset.download_data()
 
