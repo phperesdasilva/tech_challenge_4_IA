@@ -76,10 +76,20 @@ with mlflow.start_run(run_name='Stock Prediction') as run:
             num_batches +=1
 
         epoch_loss_avg = epoch_loss / num_batches
-        print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
+
+        if epoch % 10 == 0 :
+            print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
 
         mlflow.log_metric("Loss", loss.item(), step=epoch)
 
+    run_id = run.info.run_id
+    print(f"Run ID: {run_id}\n\n\n")
+
+    with open("last_run_id.txt", "w") as f:
+        f.write(run_id)
+
+    model_uri = f"runs:/{run_id}/{params['model_name']}"
+    
     model.eval()
 
     with torch.no_grad():
@@ -103,11 +113,5 @@ with mlflow.start_run(run_name='Stock Prediction') as run:
 
     torch.save(model.state_dict(), params['model_path'])
     print(f'Model saved to {params['model_path']}')
-
-    run_id = run.info.run_id
-    print(f"Run ID: {run_id}\n\n\n")
-
-    with open("last_run_id.txt", "w") as f:
-        f.write(run_id)
-
-    mlflow.pytorch.log_model(model, name=params['model_name'])
+    
+    mlflow.pytorch.log_model(model, name=params['model_name'])                                    
