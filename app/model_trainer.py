@@ -42,7 +42,6 @@ y_train_scaled, y_test_scaled = dataset.normalize_data(y_train, y_test)
 
 x_train, y_train, x_test, y_test = dataset.create_train_test_sequences(lookback_period, prediction_period, y_train_scaled, y_test_scaled)
 
-
 x_train_tensor = torch.FloatTensor(x_train).to(device)
 y_train_tensor = torch.FloatTensor(y_train).to(device)
 x_test_tensor = torch.FloatTensor(x_test).to(device)
