@@ -1,5 +1,6 @@
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
+import mlflow
 
 import plotly.express as px
 import pandas as pd
@@ -7,6 +8,8 @@ import pandas as pd
 from dataset import DatasetManager
 from lstm import StockLSTM
 from torch.utils.data import TensorDataset,DataLoader
+
+mlflow.pytorch.autolog()
 
 ticker = 'PETR4.SA'
 years = 5
