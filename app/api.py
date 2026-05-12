@@ -4,6 +4,7 @@ import yfinance as yf
 from flask import Flask, request, jsonify
 from flasgger import Swagger
 from lstm import StockLSTM
+from global_params import params
 import joblib
 
 app = Flask(__name__)
@@ -17,12 +18,12 @@ swagger = Swagger(app, template={
 })
 
 # Configurações para Modelo Univariado
-MODEL_PATH = "lstm_model_weights.pth"
-SCALER_PATH = "lstm_scaler.pkl"
-SEQ_LENGTH = 60
-INPUT_SIZE = 1 
-HIDDEN_SIZE = 32
-PREDICTION_DAYS = 15
+MODEL_PATH = params['model_path']
+SCALER_PATH = params['scaler_path']
+SEQ_LENGTH = params['lookback_period']
+INPUT_SIZE = 1
+HIDDEN_SIZE = params['hidden_size']
+PREDICTION_DAYS = params['prediction_period']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -36,6 +37,42 @@ def load_resources():
     return model, scaler
 
 model, scaler = load_resources()
+
+@app.route('/health', methods=['GET'])
+def health():
+    """
+    Endpoint de verificação de saúde da API.
+    ---
+    responses:
+      200:
+        description: API está online e recursos carregados.
+        schema:
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            device:
+              type: string
+              example: "cuda"
+            model_loaded:
+              type: boolean
+            scaler_loaded:
+              type: boolean
+    """
+    health_status = {
+        "status": "healthy",
+        "device": str(device),
+        "model_loaded": model is not None,
+        "scaler_loaded": scaler is not None
+    }
+    
+    # Se algum recurso crítico não estiver carregado, retorna erro 503
+    if not model or not scaler:
+        health_status["status"] = "unhealthy"
+        return jsonify(health_status), 503
+        
+    return jsonify(health_status), 200
+    
 
 @app.route('/predict', methods=['POST'])
 def predict_next_days():

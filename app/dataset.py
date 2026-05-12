@@ -1,6 +1,7 @@
 import yfinance as yf
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from global_params import params
 import pandas as pd
 import torch
 import joblib
@@ -38,7 +39,7 @@ class DatasetManager:
         self.scaler.fit(y_train.reshape(-1, 1))
         y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
         y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
-        joblib.dump(self.scaler, 'lstm_scaler.pkl')
+        joblib.dump(self.scaler, params['scaler_path'])
         return y_train_scaled, y_test_scaled
     
     def get_features(self, df):
@@ -60,9 +61,9 @@ class DatasetManager:
             x_test_list.append(y_test_scaled[i:(i+lookback_period)])
             y_test_list.append(y_test_scaled[i+lookback_period:i+lookback_period+prediction_period])
 
-        x_train = np.array(x_train_list).reshape(-1, 60, 1)
+        x_train = np.array(x_train_list).reshape(-1, params['lookback_period'], 1)
         y_train = np.array(y_train_list)
-        x_test = np.array(x_test_list).reshape(-1, 60, 1)
+        x_test = np.array(x_test_list).reshape(-1, params['lookback_period'], 1)
         y_test = np.array(y_test_list)
 
         return x_train, y_train, x_test, y_test
