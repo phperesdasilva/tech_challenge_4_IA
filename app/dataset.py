@@ -28,18 +28,6 @@ class DatasetManager:
         y_test = df_test[test_feature].values
 
         return df_train, y_train, df_test, y_test, split
-
-    def preprocess_data(self, df):
-        df['7_day_MA'] = df['Close'].rolling(window=7).mean()  
-        df['21_day_MA'] = df['Close'].rolling(window=21).mean()  
-        df['Daily_Return'] = df['Close'].pct_change()
-        df["LogReturn"] = np.log(df["Close"] / df["Close"].shift(1))
-        df["Volatility_7"] = df["Daily_Return"].rolling(7).std()
-        df["Volatility_21"] = df["Daily_Return"].rolling(21).std()
-        df["Volume_MA_10"] = df["Volume"].rolling(10).mean()
-        df["Volume"] = df["Volume"].astype(float)
-        df.dropna()
-        return df
     
     def filter_features(self, df, features_to_keep):
         df = df[features_to_keep]
