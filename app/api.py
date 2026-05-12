@@ -1,100 +1,115 @@
-from datetime import date, timedelta
-import flask
-from flasgger import Swagger
-import numpy as np
 import torch
+import numpy as np
 import yfinance as yf
+from flask import Flask, request, jsonify
+from flasgger import Swagger
 from lstm import StockLSTM
-from dataset import DatasetManager
+import joblib
 
-ticker = 'MSFT'
+app = Flask(__name__)
+# Inicializa o Swagger com configurações básicas
+swagger = Swagger(app, template={
+    "info": {
+        "title": "Stock Prediction API",
+        "description": "API para previsão de preços de ações usando LSTM (Tech Challenge 4)",
+        "version": "1.0.0"
+    }
+})
 
-device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Configurações para Modelo Univariado
+MODEL_PATH = "lstm_model_weights.pth"
+SCALER_PATH = "lstm_scaler.pkl"
+SEQ_LENGTH = 60
+INPUT_SIZE = 1 
+HIDDEN_SIZE = 32
+PREDICTION_DAYS = 15
 
-input_size = 1
-hidden_size = 32
-num_layers = 2
-prediction_period = 1
-dropout = 0.2
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-lookback_period = 30
+def load_resources():
+    # Instancia o modelo com a saída correta (15) para evitar size mismatch
+    model = StockLSTM(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, output_size=PREDICTION_DAYS)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    model.to(device)
+    model.eval()
+    scaler = joblib.load(SCALER_PATH)
+    return model, scaler
 
-pth_path = "trained_model.pth"
+model, scaler = load_resources()
 
-app = flask.Flask(__name__)
-swagger = Swagger(app)
-
-
-@app.route('/health', methods=['GET'])
-def health():
+@app.route('/predict', methods=['POST'])
+def predict_next_days():
     """
-    Health Check endpoint
+    Realiza a previsão do preço de fechamento para os próximos 15 dias.
     ---
-    tags:
-      - Health
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - ticker
+          properties:
+            ticker:
+              type: string
+              example: "PETR4.SA"
+              description: O símbolo da ação no Yahoo Finance.
     responses:
       200:
-        description: API is healthy
+        description: Previsões geradas com sucesso.
         schema:
           properties:
-            status:
+            ticker:
               type: string
-              example: healthy
-            message:
-              type: string
-              example: API is running
+            predictions:
+              type: array
+              items:
+                type: number
+              description: Lista com os preços previstos para os próximos 15 dias.
+      400:
+        description: Erro na requisição (ex. ticker faltando).
+      404:
+        description: Ticker não encontrado no Yahoo Finance.
       500:
-        description: API is unhealthy
+        description: Erro interno no processamento ou carregamento do modelo.
     """
     try:
-        return {'status': 'healthy', 'message': 'API is running'}, 200
-    except Exception as e:
-        return {'status': 'unhealthy', 'message': f'API error: {str(e)}'}, 500
-
-@app.route('/prediction', methods=['GET'])
-def prediction():
-    """
-    Prediction endpoint
-    ---
-    tags:
-      - Prediction
-    responses:
-      200:
-        description: Returns a prediction value
-        schema:
-          properties:
-            value:
-              type: integer
-              example: 42
-            type:
-              type: string
-              example: int
-    """
-    try:
-        model = StockLSTM(
-            input_size=input_size, 
-            hidden_size=hidden_size, 
-            num_layers=num_layers, 
-            output_size=prediction_period, #número de dias a serem previstos
-            dropout=dropout).to(device)
+        content = request.json
+        ticker = content.get('ticker')
         
-        model.load_state_dict(torch.load(pth_path, map_location=device))
-        model.eval()
+        if not ticker:
+            return jsonify({"error": "Ticker não fornecido"}), 400
 
-        lookback_date = str(date.today() - timedelta(days=60))
+        # 1. Busca dados no yfinance
+        data = yf.download(ticker, period="5y")
+        if data.empty:
+            return jsonify({"error": "Ticker não encontrado ou sem dados"}), 404
 
-        dataset = DatasetManager(ticker, start_date=lookback_date)
-        input_tensor = dataset.get_api_tensor(lookback=lookback_period, device=device)
+        # Pega as últimas 60 janelas de fechamento
+        df_input = data[['Close']].tail(SEQ_LENGTH).values
+        
+        # 2. Escalonamento
+        scaled_data = scaler.transform(df_input)
+        
+        # 3. Previsão Direta (O modelo já cospe 15 dias)
+        input_tensor = torch.tensor(scaled_data, dtype=torch.float32).unsqueeze(0).to(device)
 
         with torch.no_grad():
-            output = model(input_tensor)
+            y_pred = model(input_tensor) # Shape esperado: [1, 15]
+            predictions_scaled = y_pred.cpu().numpy()
 
-        value = float(output.item())
-        return {'value': value, 'type': type(output).__name__}, 200
+        # 4. Inversão do Scaler
+        # Como o scaler foi treinado para 1 feature, precisamos dar reshape para (15, 1)
+        inverse_predictions = scaler.inverse_transform(predictions_scaled.reshape(-1, 1))
+
+        return jsonify({
+            "ticker": ticker,
+            "predictions": inverse_predictions.flatten().tolist()
+        })
 
     except Exception as e:
-        return {'status': 'error', 'message': f'Prediction error: {str(e)}'}, 500
-
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

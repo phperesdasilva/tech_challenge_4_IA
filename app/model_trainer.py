@@ -89,9 +89,7 @@ with mlflow.start_run(run_name='Stock Prediction'):
         epoch_loss_avg = epoch_loss / num_batches
         print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
 
-        mlflow.log_metric("loss", loss.item(), step=epoch)
-
-    mlflow.pytorch.log_model(model, name="Stock Prediction LSTM")
+        mlflow.log_metric("Loss", loss.item(), step=epoch)
 
     model.eval()
 
@@ -117,3 +115,5 @@ with mlflow.start_run(run_name='Stock Prediction'):
     model_path = 'lstm_model_weights.pth'
     torch.save(model.state_dict(),model_path)
     print(f'Model saved to {model_path}')
+
+    mlflow.pytorch.log_model(model, name="Stock Prediction LSTM")

@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import torch
+import joblib
 
 torch.manual_seed(42)
 np.random.seed(42)
@@ -37,6 +38,7 @@ class DatasetManager:
         self.scaler.fit(y_train.reshape(-1, 1))
         y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
         y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
+        joblib.dump(self.scaler, 'lstm_scaler.pkl')
         return y_train_scaled, y_test_scaled
     
     def get_features(self, df):
