@@ -4,11 +4,12 @@ import yfinance as yf
 from flask import Flask, request, jsonify
 from flasgger import Swagger
 from lstm import StockLSTM
+import mlflow
 from global_params import params
 import joblib
 
 app = Flask(__name__)
-# Inicializa o Swagger com configurações básicas
+
 swagger = Swagger(app, template={
     "info": {
         "title": "Stock Prediction API",
@@ -17,7 +18,6 @@ swagger = Swagger(app, template={
     }
 })
 
-# Configurações para Modelo Univariado
 MODEL_PATH = params['model_path']
 SCALER_PATH = params['scaler_path']
 SEQ_LENGTH = params['lookback_period']
@@ -25,14 +25,18 @@ INPUT_SIZE = 1
 HIDDEN_SIZE = params['hidden_size']
 PREDICTION_DAYS = params['prediction_period']
 
+with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
+    run_id = arquivo.read()
+
+MODEL_URI = f"runs:/{run_id}/{params['model_name']}"
+print(f'\n\nModel URI: {MODEL_URI}\n\n')
+
+mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_resources():
-    # Instancia o modelo com a saída correta (15) para evitar size mismatch
-    model = StockLSTM(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, output_size=PREDICTION_DAYS)
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-    model.to(device)
-    model.eval()
+    model = mlflow.pytorch.load_model(MODEL_URI, map_location=device)
     scaler = joblib.load(SCALER_PATH)
     return model, scaler
 
@@ -66,7 +70,6 @@ def health():
         "scaler_loaded": scaler is not None
     }
     
-    # Se algum recurso crítico não estiver carregado, retorna erro 503
     if not model or not scaler:
         health_status["status"] = "unhealthy"
         return jsonify(health_status), 503
@@ -118,26 +121,20 @@ def predict_next_days():
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400
 
-        # 1. Busca dados no yfinance
         data = yf.download(ticker, period="5y")
         if data.empty:
             return jsonify({"error": "Ticker não encontrado ou sem dados"}), 404
 
-        # Pega as últimas 60 janelas de fechamento
         df_input = data[['Close']].tail(SEQ_LENGTH).values
         
-        # 2. Escalonamento
         scaled_data = scaler.transform(df_input)
         
-        # 3. Previsão Direta (O modelo já cospe 15 dias)
         input_tensor = torch.tensor(scaled_data, dtype=torch.float32).unsqueeze(0).to(device)
 
         with torch.no_grad():
-            y_pred = model(input_tensor) # Shape esperado: [1, 15]
+            y_pred = model(input_tensor)
             predictions_scaled = y_pred.cpu().numpy()
 
-        # 4. Inversão do Scaler
-        # Como o scaler foi treinado para 1 feature, precisamos dar reshape para (15, 1)
         inverse_predictions = scaler.inverse_transform(predictions_scaled.reshape(-1, 1))
 
         return jsonify({
