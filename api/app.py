@@ -1,3 +1,5 @@
+from mlflow.runs import RUN_ID
+from datetime import datetime, timedelta
 import torch
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify
@@ -6,6 +8,7 @@ import mlflow
 from api.global_params import params
 import joblib
 from model.lstm import StockLSTM
+from model.model_trainer import train_model
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -19,16 +22,43 @@ swagger = Swagger(app, template={
     }
 })
 
-with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
-    run_id = arquivo.read()
+LAST_RUN_DATE_FILE = "last_run_date.txt"
+RETRAIN_AFTER_DAYS = 1
 
-MODEL_URI = f"runs:/{run_id}/{params['model_name']}"
-print(f'\n\nModel URI: {MODEL_URI}\n\n')
+def get_mlflow_info():
+  with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
+      RUN_ID = arquivo.read()
 
-mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
-print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
+  MODEL_URI = f"runs:/{RUN_ID}/{params['model_name']}"
+  print(f'\n\nModel URI: {MODEL_URI}\n\n')
+
+  mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
+  print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
+  
+  return RUN_ID, MODEL_URI
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def should_retrain_model(days_threshold=RETRAIN_AFTER_DAYS):
+    try:
+        with open(LAST_RUN_DATE_FILE, "r", encoding="utf-8") as file:
+            last_run_date_str = file.read().strip()
+    except OSError:
+        print("Arquivo de data de treino nao encontrado. Treinando modelo.")
+        return True
+
+    if not last_run_date_str:
+        print("Arquivo de data de treino vazio. Treinando modelo.")
+        return True
+
+    try:
+        last_run_date = datetime.fromisoformat(last_run_date_str)
+    except ValueError:
+        print("Data de treino invalida. Treinando modelo.")
+        return True
+
+    return datetime.now() - last_run_date >= timedelta(days=days_threshold)
 
 def load_resources():
     # try:
@@ -50,10 +80,23 @@ def load_resources():
     scaler = joblib.load(params['scaler_path'])
     return model, scaler
 
+
+def retrain_if_needed():
+    global model, scaler
+
+    if not should_retrain_model():
+        return False, None
+
+    train_model()
+    model, scaler = load_resources()
+    run_id, _ = get_mlflow_info()
+    return True, run_id
+
 model, scaler = load_resources()
 
 @app.route('/')
 def home():
+  
     return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
@@ -90,7 +133,6 @@ def health():
         
     return jsonify(health_status), 200
     
-
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
     """
@@ -129,6 +171,16 @@ def predict_next_days():
         description: Erro interno no processamento ou carregamento do modelo.
     """
     try:
+        
+        try:
+            with open(LAST_RUN_DATE_FILE, "r") as f:
+                last_date = datetime.fromisoformat(f.read().strip())
+                diff_days = (datetime.now() - last_date).days
+        except:
+            diff_days = "X"
+
+        retrained, run_id = retrain_if_needed()
+
         content = request.json
         ticker = content.get('ticker')
         
@@ -151,13 +203,42 @@ def predict_next_days():
 
         inverse_predictions = scaler.inverse_transform(predictions_scaled.reshape(-1, 1))
 
-        return jsonify({
+        response = {
             "ticker": ticker,
             "predictions": inverse_predictions.flatten().tolist()
-        })
+        }
+
+        if retrained:
+            response["model_retrained"] = True
+            response["run_id"] = run_id
+            response["retrain_message"] = f"Modelo retreinado automaticamente: passaram-se {diff_days} dias desde o último treino."
+            response["mlflow_link"] = f"http://localhost:3050/#/experiments/0/runs/{run_id}"
+            
+        return jsonify(response)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/train', methods=['GET'])
+def train():
+    """
+    Endpoint para treinar o modelo LSTM com os dados mais recentes.
+    ---
+    responses:
+      200:
+        description: Treinamento iniciado com sucesso.
+      403:
+        description: Erro interno durante o processo de treinamento.
+    """
+    try:
+        global model, scaler
+        train_model()
+        model, scaler = load_resources()
+        RUN_ID, _ = get_mlflow_info()
+        mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"
+        return jsonify({"message": f"Treinamento finalizado com sucesso. Log: {mlflow_link}"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 403
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
