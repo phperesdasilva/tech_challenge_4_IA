@@ -171,6 +171,14 @@ def predict_next_days():
         description: Erro interno no processamento ou carregamento do modelo.
     """
     try:
+        
+        try:
+            with open(LAST_RUN_DATE_FILE, "r") as f:
+                last_date = datetime.fromisoformat(f.read().strip())
+                diff_days = (datetime.now() - last_date).days
+        except:
+            diff_days = "X"
+
         retrained, run_id = retrain_if_needed()
 
         content = request.json
@@ -203,7 +211,9 @@ def predict_next_days():
         if retrained:
             response["model_retrained"] = True
             response["run_id"] = run_id
-
+            response["retrain_message"] = f"Modelo retreinado automaticamente: passaram-se {diff_days} dias desde o último treino."
+            response["mlflow_link"] = f"http://localhost:3050/#/experiments/0/runs/{run_id}"
+            
         return jsonify(response)
 
     except Exception as e:
