@@ -1,3 +1,4 @@
+from mlflow.runs import RUN_ID
 import torch
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify
@@ -6,6 +7,7 @@ import mlflow
 from api.global_params import params
 import joblib
 from model.lstm import StockLSTM
+from model.model_trainer import train_model
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -19,14 +21,17 @@ swagger = Swagger(app, template={
     }
 })
 
-with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
-    run_id = arquivo.read()
+def get_mlflow_info():
+  with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
+      RUN_ID = arquivo.read()
 
-MODEL_URI = f"runs:/{run_id}/{params['model_name']}"
-print(f'\n\nModel URI: {MODEL_URI}\n\n')
+  MODEL_URI = f"runs:/{RUN_ID}/{params['model_name']}"
+  print(f'\n\nModel URI: {MODEL_URI}\n\n')
 
-mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
-print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
+  mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
+  print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
+  
+  return RUN_ID, MODEL_URI
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -90,7 +95,6 @@ def health():
         
     return jsonify(health_status), 200
     
-
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
     """
@@ -158,6 +162,25 @@ def predict_next_days():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/train', methods=['GET'])
+def train():
+    """
+    Endpoint para treinar o modelo LSTM com os dados mais recentes.
+    ---
+    responses:
+      200:
+        description: Treinamento iniciado com sucesso.
+      403:
+        description: Erro interno durante o processo de treinamento.
+    """
+    try:
+        train_model()
+        RUN_ID, _ = get_mlflow_info()
+        mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"
+        return jsonify({"message": f"Treinamento finalizado com sucesso. Log: {mlflow_link}"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 403
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

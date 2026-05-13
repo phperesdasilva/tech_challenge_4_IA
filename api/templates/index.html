@@ -7,44 +7,82 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
+<!-- Alterado para fundo cinza muito escuro -->
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col items-center py-10 transition-colors duration-300">
 
-    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">Previsão de Ações</h1>
+    <!-- Alterado para fundo grafite e bordas sutis -->
+    <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700">
+        <h1 class="text-2xl font-bold mb-6 text-white text-center">Previsão de Ações</h1>
         
-        <div class="flex gap-4 mb-8">
+        <!-- Seção de Predição -->
+        <div class="flex gap-4 mb-4">
             <input type="text" id="ticker" placeholder="Ex: PETR4.SA" 
-                   class="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase">
+                   class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase">
             <button onclick="getPrediction()" id="btnPredict"
-                    class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400">
+                    class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600">
                 Prever
             </button>
         </div>
 
-        <div id="loader" class="hidden text-center text-blue-600 font-semibold mb-4">
-            Processando dados e consultando o modelo...
+        <!-- Seção de Treinamento -->
+        <div class="flex justify-end mb-8">
+            <button onclick="trainModel()" id="btnTrain"
+                    class="text-xs bg-gray-600 text-gray-300 px-3 py-1 rounded hover:bg-gray-500 transition-colors disabled:bg-gray-700">
+                Retreinar Modelo
+            </button>
         </div>
 
-        <div class="relative h-80 w-full">
+        <!-- Loader ajustado para cor vibrante -->
+        <div id="loader" class="hidden text-center text-blue-400 font-semibold mb-4 animate-pulse">
+            Processando requisição...
+        </div>
+
+        <div class="relative h-80 w-full bg-gray-900/50 rounded-lg p-2">
             <canvas id="predictionChart"></canvas>
         </div>
     </div>
 
     <script>
         let stockChart;
+        const loader = document.getElementById('loader');
+
+        async function trainModel() {
+            const btn = document.getElementById('btnTrain');
+            if (!confirm("Deseja iniciar o treinamento do modelo? Isso pode levar alguns minutos.")) return;
+
+            btn.disabled = true;
+            loader.innerText = "Treinando modelo (MLFlow)...";
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/train');
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert("Sucesso! " + data.message);
+                    location.reload(); 
+                } else {
+                    alert("Erro no treino: " + (data.error || "Erro desconhecido"));
+                }
+            } catch (error) {
+                alert("Erro ao conectar com o servidor para treinamento.");
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
 
         async function getPrediction() {
             const ticker = document.getElementById('ticker').value.toUpperCase();
             const btn = document.getElementById('btnPredict');
-            const loader = document.getElementById('loader');
 
             if (!ticker) {
                 alert("Por favor, digite um ticker.");
                 return;
             }
 
-            // UI State
             btn.disabled = true;
+            loader.innerText = "Consultando o modelo LSTM...";
             loader.classList.remove('hidden');
 
             try {
@@ -63,7 +101,7 @@
                 }
             } catch (error) {
                 console.error(error);
-                alert("Erro ao conectar com a API. Verifique se o servidor Flask está rodando.");
+                alert("Erro ao conectar com a API.");
             } finally {
                 btn.disabled = false;
                 loader.classList.add('hidden');
@@ -72,13 +110,15 @@
 
         function renderChart(ticker, predictions) {
             const ctx = document.getElementById('predictionChart').getContext('2d');
-            
-            // Gerar labels para os próximos 15 dias
             const labels = predictions.map((_, i) => `Dia ${i + 1}`);
 
             if (stockChart) {
                 stockChart.destroy();
             }
+
+            // Configurações globais para cores claras no gráfico
+            Chart.defaults.color = '#9ca3af'; // Gray-400
+            Chart.defaults.borderColor = '#374151'; // Gray-700
 
             stockChart = new Chart(ctx, {
                 type: 'line',
@@ -87,25 +127,34 @@
                     datasets: [{
                         label: `Previsão de Preço - ${ticker}`,
                         data: predictions,
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        borderWidth: 2,
+                        borderColor: '#60a5fa', // Blue-400 (mais brilhante para dark mode)
+                        backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#60a5fa',
                         fill: true,
-                        tension: 0.3
+                        tension: 0.4
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'top' }
+                        legend: {
+                            labels: { color: '#f3f4f6' } // Gray-100
+                        }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: value => 'R$ ' + value.toFixed(2)
-                            }
+                        y: { 
+                            grid: { color: '#374151' },
+                            beginAtZero: false, 
+                            ticks: { 
+                                color: '#9ca3af',
+                                callback: value => 'R$ ' + value.toFixed(2) 
+                            } 
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#9ca3af' }
                         }
                     }
                 }

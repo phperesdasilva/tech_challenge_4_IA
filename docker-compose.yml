@@ -2,11 +2,19 @@ services:
   mlflow:
     image: python:3.11-slim
     working_dir: /mlflow
-    command: bash -c "pip install mlflow -q && mlflow server --host 0.0.0.0 --port 3050"
+    command: >
+      bash -c "pip install mlflow -q && 
+      mlflow server 
+      --host 0.0.0.0 
+      --port 3050 
+      --allowed-hosts '*' 
+      --cors-allowed-origins '*'"
     ports:
       - "3050:3050"
     volumes:
       - mlflow_data:/mlflow
+    environment:
+      - MLFLOW_HTTP_WHITELIST=mlflow,localhost,api
     networks:
       - app-network
 
