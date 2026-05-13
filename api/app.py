@@ -1,13 +1,15 @@
 import torch
 import yfinance as yf
-from flask import Flask, request, jsonify
+from flask import Flask, render_template, request, jsonify
 from flasgger import Swagger
 import mlflow
 from api.global_params import params
 import joblib
 from model.lstm import StockLSTM
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 swagger = Swagger(app, template={
     "info": {
@@ -49,6 +51,10 @@ def load_resources():
     return model, scaler
 
 model, scaler = load_resources()
+
+@app.route('/')
+def home():
+    return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
 def health():
