@@ -1,10 +1,34 @@
 services:
+  mlflow:
+    image: python:3.11-slim
+    working_dir: /mlflow
+    command: bash -c "pip install mlflow -q && mlflow server --host 0.0.0.0 --port 3050"
+    ports:
+      - "3050:3050"
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - app-network
+
   api:
     build: .
     ports:
       - "5000:5000"
     volumes:
-      - .:/app
+      - .:/tech_challenge_4_IA
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
+      - MLFLOW_TRACKING_URI=http://mlflow:3050
+      - PYTHONPATH=/tech_challenge_4_IA
+    depends_on:
+      - mlflow
+    networks:
+      - app-network
+
+volumes:
+  mlflow_data:
+
+networks:
+  app-network:
+    driver: bridge

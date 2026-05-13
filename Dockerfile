@@ -8,10 +8,6 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-WORKDIR /tech_challenge_4_IA/app
+ENV PYTHONPATH=/tech_challenge_4_IA
 
-# RUN flask db init
-# RUN flask db migrate
-# RUN flask db upgrade
-
-CMD ["python3", "app.py"]
+CMD ["python", "-m", "api.app"]
