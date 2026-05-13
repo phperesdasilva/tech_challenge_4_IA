@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Predictor - LSTM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-10">
+
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">Previsão de Ações (LSTM)</h1>
+        
+        <div class="flex gap-4 mb-8">
+            <input type="text" id="ticker" placeholder="Ex: PETR4.SA" 
+                   class="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase">
+            <button onclick="getPrediction()" id="btnPredict"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400">
+                Prever
+            </button>
+        </div>
+
+        <div id="loader" class="hidden text-center text-blue-600 font-semibold mb-4">
+            Processando dados e consultando o modelo...
+        </div>
+
+        <div class="relative h-80 w-full">
+            <canvas id="predictionChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let stockChart;
+
+        async function getPrediction() {
+            const ticker = document.getElementById('ticker').value.toUpperCase();
+            const btn = document.getElementById('btnPredict');
+            const loader = document.getElementById('loader');
+
+            if (!ticker) {
+                alert("Por favor, digite um ticker.");
+                return;
+            }
+
+            // UI State
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticker: ticker })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    renderChart(data.ticker, data.predictions);
+                } else {
+                    alert("Erro: " + (data.error || "Falha na requisição"));
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao conectar com a API. Verifique se o servidor Flask está rodando.");
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
+
+        function renderChart(ticker, predictions) {
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            
+            // Gerar labels para os próximos 15 dias
+            const labels = predictions.map((_, i) => `Dia ${i + 1}`);
+
+            if (stockChart) {
+                stockChart.destroy();
+            }
+
+            stockChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Previsão de Preço - ${ticker}`,
+                        data: predictions,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: value => 'R$ ' + value.toFixed(2)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
