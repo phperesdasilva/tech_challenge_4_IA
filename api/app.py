@@ -3,8 +3,9 @@ import yfinance as yf
 from flask import Flask, request, jsonify
 from flasgger import Swagger
 import mlflow
-from global_params import params
+from api.global_params import params
 import joblib
+from model.lstm import StockLSTM
 
 app = Flask(__name__)
 
@@ -23,11 +24,27 @@ MODEL_URI = f"runs:/{run_id}/{params['model_name']}"
 print(f'\n\nModel URI: {MODEL_URI}\n\n')
 
 mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
+print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_resources():
-    model = mlflow.pytorch.load_model(MODEL_URI, map_location=device)
+    # try:
+    #   model = mlflow.pytorch.load_model(MODEL_URI, map_location=device)
+    #   print("Modelo carregado do servidor MLFlow.")
+    # except Exception as e:
+    #   print(f"Erro ao carregar o modelo do servidor MLFlow: {e}")
+    model = StockLSTM(
+        input_size=1, 
+        hidden_size=params['hidden_size'], 
+        num_layers=params['num_layers'], 
+        output_size=params['prediction_period'],
+        dropout=params['dropout']
+    ).to(device)
+    model.load_state_dict(torch.load(params['model_path'], map_location=device))
+    model.to(device)
+    model.eval()
+    print("Modelo carregado localmente.")
     scaler = joblib.load(params['scaler_path'])
     return model, scaler
 
@@ -137,4 +154,4 @@ def predict_next_days():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
