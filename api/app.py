@@ -1,4 +1,5 @@
 from mlflow.runs import RUN_ID
+from datetime import datetime, timedelta
 import torch
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify
@@ -21,6 +22,9 @@ swagger = Swagger(app, template={
     }
 })
 
+LAST_RUN_DATE_FILE = "last_run_date.txt"
+RETRAIN_AFTER_DAYS = 1
+
 def get_mlflow_info():
   with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
       RUN_ID = arquivo.read()
@@ -34,6 +38,27 @@ def get_mlflow_info():
   return RUN_ID, MODEL_URI
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def should_retrain_model(days_threshold=RETRAIN_AFTER_DAYS):
+    try:
+        with open(LAST_RUN_DATE_FILE, "r", encoding="utf-8") as file:
+            last_run_date_str = file.read().strip()
+    except OSError:
+        print("Arquivo de data de treino nao encontrado. Treinando modelo.")
+        return True
+
+    if not last_run_date_str:
+        print("Arquivo de data de treino vazio. Treinando modelo.")
+        return True
+
+    try:
+        last_run_date = datetime.fromisoformat(last_run_date_str)
+    except ValueError:
+        print("Data de treino invalida. Treinando modelo.")
+        return True
+
+    return datetime.now() - last_run_date >= timedelta(days=days_threshold)
 
 def load_resources():
     # try:
@@ -55,10 +80,23 @@ def load_resources():
     scaler = joblib.load(params['scaler_path'])
     return model, scaler
 
+
+def retrain_if_needed():
+    global model, scaler
+
+    if not should_retrain_model():
+        return False, None
+
+    train_model()
+    model, scaler = load_resources()
+    run_id, _ = get_mlflow_info()
+    return True, run_id
+
 model, scaler = load_resources()
 
 @app.route('/')
 def home():
+  
     return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
@@ -133,6 +171,8 @@ def predict_next_days():
         description: Erro interno no processamento ou carregamento do modelo.
     """
     try:
+        retrained, run_id = retrain_if_needed()
+
         content = request.json
         ticker = content.get('ticker')
         
@@ -155,10 +195,16 @@ def predict_next_days():
 
         inverse_predictions = scaler.inverse_transform(predictions_scaled.reshape(-1, 1))
 
-        return jsonify({
+        response = {
             "ticker": ticker,
             "predictions": inverse_predictions.flatten().tolist()
-        })
+        }
+
+        if retrained:
+            response["model_retrained"] = True
+            response["run_id"] = run_id
+
+        return jsonify(response)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -175,7 +221,9 @@ def train():
         description: Erro interno durante o processo de treinamento.
     """
     try:
+        global model, scaler
         train_model()
+        model, scaler = load_resources()
         RUN_ID, _ = get_mlflow_info()
         mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"
         return jsonify({"message": f"Treinamento finalizado com sucesso. Log: {mlflow_link}"}), 200

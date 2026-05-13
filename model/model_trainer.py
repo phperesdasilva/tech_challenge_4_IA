@@ -1,9 +1,7 @@
-from pathlib import Path
-import sys
-
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
 import mlflow
+import datetime
 
 from model.dataset import DatasetManager
 from model.lstm import StockLSTM
@@ -91,6 +89,9 @@ def train_model():
 
         with open("last_run_id.txt", "w") as f:
             f.write(run_id)
+        
+        with open("last_run_date.txt", "w") as f:
+            f.write(str(datetime.datetime.now()))
 
         model_uri = f"runs:/{run_id}/{params['model_name']}"
         
