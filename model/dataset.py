@@ -1,7 +1,10 @@
+from pathlib import Path
+import sys
+
 import yfinance as yf
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-from global_params import params
+from api.global_params import params
 import pandas as pd
 import torch
 import joblib

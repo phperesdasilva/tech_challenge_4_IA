@@ -1,15 +1,17 @@
+from pathlib import Path
+import sys
+
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, root_mean_squared_error
 import torch
 import mlflow
 
-from dataset import DatasetManager
-from lstm import StockLSTM
+from model.dataset import DatasetManager
+from model.lstm import StockLSTM
 from torch.utils.data import TensorDataset,DataLoader
 
-from global_params import params
+from api.global_params import params
 
-MLFLOW_TRACKING_URI = 'http://localhost:3050'
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
 
 tickers = ['PETR4.SA']
 years = 5
@@ -53,7 +55,7 @@ train_loader = DataLoader(train_dataset, batch_size=params['batch_size'], shuffl
 
 mlflow.enable_system_metrics_logging()
 
-with mlflow.start_run(run_name='Stock Prediction'):
+with mlflow.start_run(run_name='Stock Prediction') as run:
 
     mlflow.log_params({"Learning Rate": params['learning_rate'], 
                        "Batch Size": params['batch_size'], 
@@ -77,10 +79,20 @@ with mlflow.start_run(run_name='Stock Prediction'):
             num_batches +=1
 
         epoch_loss_avg = epoch_loss / num_batches
-        print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
+
+        if epoch % 10 == 0 :
+            print(f'Epoch {epoch + 1}, Loss: {epoch_loss_avg:.4f}')
 
         mlflow.log_metric("Loss", loss.item(), step=epoch)
 
+    run_id = run.info.run_id
+    print(f"Run ID: {run_id}\n\n\n")
+
+    with open("last_run_id.txt", "w") as f:
+        f.write(run_id)
+
+    model_uri = f"runs:/{run_id}/{params['model_name']}"
+    
     model.eval()
 
     with torch.no_grad():
@@ -92,7 +104,7 @@ with mlflow.start_run(run_name='Stock Prediction'):
     y_test_real = dataset.inverse_transform(y_test)
 
     mape = mean_absolute_percentage_error(y_test_real, y_pred_real)
-    print(f'MAPE: {mape:.4f}')
+    print(f'\n\n\nMAPE: {mape:.4f}')
 
     mae = mean_absolute_error(y_test_real, y_pred_real)
     print(f'MAE: {mae:.4f}')
@@ -102,8 +114,7 @@ with mlflow.start_run(run_name='Stock Prediction'):
 
     mlflow.log_metrics({"MAPE": mape,"MAE": mae,"RMSE": rmse})
 
-    model_path = 'lstm_model_weights.pth'
-    torch.save(model.state_dict(),model_path)
-    print(f'Model saved to {model_path}')
-
-    mlflow.pytorch.log_model(model, name="Stock Prediction LSTM")
+    torch.save(model.state_dict(), params['model_path'])
+    print(f'Model saved to {params['model_path']}')
+    
+    mlflow.pytorch.log_model(model, name=params['model_name'])                                    
