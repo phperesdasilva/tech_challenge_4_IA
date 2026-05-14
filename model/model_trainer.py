@@ -92,8 +92,8 @@ def train_model(ticker):
         with open("last_run_id.txt", "w") as f:
             f.write(run_id)
         
-        with open("last_run_date.txt", "w") as f:
-            f.write(f'{ticker}_{str(datetime.datetime.now())}')
+        with open("last_run_date.txt", "a") as f:
+            f.write(f'{ticker}_{str(datetime.datetime.now())}\n')
 
         model_uri = f"runs:/{run_id}/{params['model_name']}"
         
@@ -118,7 +118,7 @@ def train_model(ticker):
 
         mlflow.log_metrics({"MAPE": mape,"MAE": mae,"RMSE": rmse})
 
-        model_file = f'{ticker}_{params['model_path']}'
+        model_file = f'model_files/{ticker}_{params['model_path']}'
 
         torch.save(model.state_dict(), model_file)
         print(f'Model saved to {model_file}')

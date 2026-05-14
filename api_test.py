@@ -44,4 +44,6 @@ def plot_results(preds, ticker):
     plt.show()
 
 if __name__ == "__main__":
-    test_prediction()
+    # test_prediction()
+    from model.model_trainer import train_model
+    train_model('MSFT')
