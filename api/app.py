@@ -81,13 +81,13 @@ def load_resources():
     return model, scaler
 
 
-def retrain_if_needed():
+def retrain_if_needed(ticker):
     global model, scaler
 
     if not should_retrain_model():
         return False, None
 
-    train_model()
+    train_model(ticker)
     model, scaler = load_resources()
     run_id, _ = get_mlflow_info()
     return True, run_id
@@ -179,10 +179,10 @@ def predict_next_days():
         except:
             diff_days = "X"
 
-        retrained, run_id = retrain_if_needed()
-
         content = request.json
         ticker = content.get('ticker')
+        
+        retrained, run_id = retrain_if_needed(ticker)
         
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400
@@ -232,7 +232,7 @@ def train():
     """
     try:
         global model, scaler
-        train_model()
+        train_model(ticker)
         model, scaler = load_resources()
         RUN_ID, _ = get_mlflow_info()
         mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"

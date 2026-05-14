@@ -9,17 +9,19 @@ from torch.utils.data import TensorDataset,DataLoader
 
 from api.global_params import params
 
-def train_model():
+def train_model(ticker):
     mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
 
-    tickers = ['PETR4.SA']
     years = 5
 
     device =  torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dataset = DatasetManager(tickers=tickers, years=years)
+    dataset = DatasetManager(tickers=ticker, years=years)
 
     df = dataset.download_data()
+
+    if '.' in ticker:
+        ticker = ticker.replace('.', '_')
 
     features_to_keep = ['Close']
     df = dataset.filter_features(df, features_to_keep)
@@ -91,7 +93,7 @@ def train_model():
             f.write(run_id)
         
         with open("last_run_date.txt", "w") as f:
-            f.write(str(datetime.datetime.now()))
+            f.write(f'{ticker}_{str(datetime.datetime.now())}')
 
         model_uri = f"runs:/{run_id}/{params['model_name']}"
         
@@ -116,7 +118,9 @@ def train_model():
 
         mlflow.log_metrics({"MAPE": mape,"MAE": mae,"RMSE": rmse})
 
-        torch.save(model.state_dict(), params['model_path'])
-        print(f'Model saved to {params['model_path']}')
-        
-        mlflow.pytorch.log_model(model, name=params['model_name'])                                    
+        model_file = f'{ticker}_{params['model_path']}'
+
+        torch.save(model.state_dict(), model_file)
+        print(f'Model saved to {model_file}')
+
+        mlflow.pytorch.log_model(model, name=f'{ticker}_{params['model_name']}')                                    
