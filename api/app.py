@@ -10,6 +10,7 @@ import joblib
 from model.lstm import StockLSTM
 from model.model_trainer import train_model
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -57,33 +58,19 @@ def load_resources(ticker):
     model.to(device)
     model.eval()
     print("Modelo carregado localmente.")
-    scaler = joblib.load(params['scaler_path'])
+    scales_file = f'scales_files/{ticker}_{params['scaler_path']}'
+    scaler = joblib.load(scales_file)
     return model, scaler
 
-def should_retrain_model(days_threshold=RETRAIN_AFTER_DAYS, ticker=None):
-    try:
-        with open(LAST_RUN_DATE_FILE, "r", encoding="utf-8") as file:
-            last_run_date_str = file.read().strip()
-    except OSError:
-        print("Arquivo de data de treino nao encontrado. Treinando modelo.")
-        return True
+def should_retrain_model(ticker):
+    for model in os.listdir('model_files'):
+        file_ticker = model.split('_')[0]
+        real_ticker = ticker.split('.')[0]
 
-    if not last_run_date_str:
-        print("Arquivo de data de treino vazio. Treinando modelo.")
-        return True
-
-    try:   
-        last_run_date = datetime.fromisoformat(last_run_date_str)
-        print(last_run_date)
-        print(last_run_date_str)
-        print(ticker)
-    except ValueError:
-        print("Data de treino invalida. Treinando modelo.")
-        return True
-
-    return datetime.now() - last_run_date >= timedelta(days=days_threshold)
-
-
+        if file_ticker == real_ticker:
+            print('Model found in model_files')
+            return False
+    return True    
 
 def retrain_if_needed(ticker):
     global model, scaler
@@ -102,25 +89,6 @@ def home():
 
 @app.route('/health', methods=['GET'])
 def health():
-    """
-    Endpoint de verificação de saúde da API.
-    ---
-    responses:
-      200:
-        description: API está online e recursos carregados.
-        schema:
-          properties:
-            status:
-              type: string
-              example: "healthy"
-            device:
-              type: string
-              example: "cuda"
-            model_loaded:
-              type: boolean
-            scaler_loaded:
-              type: boolean
-    """
     health_status = {
         "status": "healthy",
         "device": str(device),
@@ -136,56 +104,16 @@ def health():
     
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
-    """
-    Realiza a previsão do preço de fechamento para os próximos 15 dias.
-    ---
-    parameters:
-      - name: body
-        in: body
-        required: true
-        schema:
-          type: object
-          required:
-            - ticker
-          properties:
-            ticker:
-              type: string
-              example: "PETR4.SA"
-              description: O símbolo da ação no Yahoo Finance.
-    responses:
-      200:
-        description: Previsões geradas com sucesso.
-        schema:
-          properties:
-            ticker:
-              type: string
-            predictions:
-              type: array
-              items:
-                type: number
-              description: Lista com os preços previstos para os próximos 15 dias.
-      400:
-        description: Erro na requisição (ex. ticker faltando).
-      404:
-        description: Ticker não encontrado no Yahoo Finance.
-      500:
-        description: Erro interno no processamento ou carregamento do modelo.
-    """
     global ticker
     
     try:
-        
-        try:
-            with open(LAST_RUN_DATE_FILE, "r") as f:
-                last_date = datetime.fromisoformat(f.read().strip())
-                diff_days = (datetime.now() - last_date).days
-        except:
-            diff_days = "X"
-
         content = request.json
         ticker = content.get('ticker')
 
         retrained, run_id = retrain_if_needed(ticker)
+
+        if not retrained:
+            model, scaler = load_resources(ticker)
         
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400
@@ -221,27 +149,6 @@ def predict_next_days():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/train', methods=['GET'])
-def train():
-    """
-    Endpoint para treinar o modelo LSTM com os dados mais recentes.
-    ---
-    responses:
-      200:
-        description: Treinamento iniciado com sucesso.
-      403:
-        description: Erro interno durante o processo de treinamento.
-    """
-    try:
-        global model, scaler, ticker
-        train_model(ticker)
-        model, scaler = load_resources(ticker)
-        RUN_ID, _ = get_mlflow_info()
-        mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"
-        return jsonify({"message": f"Treinamento finalizado com sucesso. Log: {mlflow_link}"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 403
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

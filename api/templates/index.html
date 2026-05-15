@@ -12,25 +12,17 @@
     <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700">
         <h1 class="text-2xl font-bold mb-6 text-white text-center">Previsão de Ações</h1>
         
-        <!-- Área de Mensagens e Logs (Onde o link aparecerá) -->
+        <!-- Área de Mensagens -->
         <div id="statusArea" class="hidden mb-6 p-4 rounded-lg bg-blue-900/30 border border-blue-500/50 text-sm">
-            <p id="statusMessage" class="text-blue-200 mb-2 font-medium"></p>
-            <a id="mlflowLink" href="#" target="_blank" class="text-blue-400 underline hover:text-blue-300 break-all"></a>
+            <p id="statusMessage" class="text-blue-200 font-medium"></p>
         </div>
 
-        <div class="flex gap-4 mb-4">
+        <div class="flex gap-4 mb-8">
             <input type="text" id="ticker" placeholder="Ex: PETR4.SA" 
                    class="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase">
             <button onclick="getPrediction()" id="btnPredict"
                     class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-500 transition-colors disabled:bg-gray-600">
                 Prever
-            </button>
-        </div>
-
-        <div class="flex justify-end mb-8">
-            <button onclick="trainModel()" id="btnTrain"
-                    class="text-xs bg-gray-600 text-gray-300 px-3 py-1 rounded hover:bg-gray-500 transition-colors disabled:bg-gray-700">
-                Retreinar Manualmente
             </button>
         </div>
 
@@ -48,46 +40,10 @@
         const loader = document.getElementById('loader');
         const statusArea = document.getElementById('statusArea');
         const statusMessage = document.getElementById('statusMessage');
-        const mlflowLink = document.getElementById('mlflowLink');
 
-        function showStatus(msg, url = null) {
+        function showStatus(msg) {
             statusArea.classList.remove('hidden');
             statusMessage.innerText = msg;
-            if (url) {
-                mlflowLink.href = url;
-                mlflowLink.innerText = "Acessar Log no MLFlow → " + url;
-                mlflowLink.classList.remove('hidden');
-            } else {
-                mlflowLink.classList.add('hidden');
-            }
-        }
-
-        async function trainModel() {
-            const btn = document.getElementById('btnTrain');
-            if (!confirm("Deseja iniciar o treinamento?")) return;
-
-            btn.disabled = true;
-            loader.innerText = "Treinando modelo (MLFlow)...";
-            loader.classList.remove('hidden');
-
-            try {
-                const response = await fetch('/train');
-                const data = await response.json();
-
-                if (response.ok) {
-                    // Extrai o link da mensagem (formato esperado do seu backend)
-                    const linkMatch = data.message.match(/http.*/);
-                    const link = linkMatch ? linkMatch[0] : null;
-                    showStatus("Treinamento manual finalizado com sucesso!", link);
-                } else {
-                    showStatus("Erro no treino: " + (data.error || "Falha"));
-                }
-            } catch (error) {
-                showStatus("Erro ao conectar com o servidor.");
-            } finally {
-                btn.disabled = false;
-                loader.classList.add('hidden');
-            }
         }
 
         async function getPrediction() {
@@ -97,6 +53,7 @@
             if (!ticker) return alert("Digite um ticker.");
 
             btn.disabled = true;
+            statusArea.classList.add('hidden');
             loader.innerText = "Consultando o modelo...";
             loader.classList.remove('hidden');
 
@@ -111,11 +68,6 @@
 
                 if (response.ok) {
                     renderChart(data.ticker, data.predictions);
-                    
-                    // Se houve retreino automático
-                    if (data.model_retrained) {
-                        showStatus(data.retrain_message, data.mlflow_link);
-                    }
                 } else {
                     showStatus("Erro: " + (data.error || "Falha na requisição"));
                 }
@@ -153,7 +105,10 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { grid: { color: '#374151' }, ticks: { callback: v => 'R$ ' + v.toFixed(2) } },
+                        y: { 
+                            grid: { color: '#374151' }, 
+                            ticks: { callback: v => 'R$ ' + v.toFixed(2) } 
+                        },
                         x: { grid: { display: false } }
                     }
                 }

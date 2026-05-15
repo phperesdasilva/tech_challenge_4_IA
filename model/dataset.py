@@ -42,6 +42,11 @@ class DatasetManager:
         self.scaler.fit(y_train.reshape(-1, 1))
         y_train_scaled = self.scaler.transform(y_train.reshape(-1, 1)).flatten()
         y_test_scaled = self.scaler.transform(y_test.reshape(-1, 1)).flatten()
+        
+        if '.' in self.tickers:
+            ticker = self.tickers.replace('.', '_')
+
+        scales_file = f'scales_files/{ticker}_{params['scaler_path']}'
         joblib.dump(self.scaler, params['scaler_path'])
         return y_train_scaled, y_test_scaled
     
