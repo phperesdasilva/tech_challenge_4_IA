@@ -29,18 +29,34 @@ RETRAIN_AFTER_DAYS = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_mlflow_info():
-  with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
-      RUN_ID = arquivo.read()
+    """Lê o último `run_id` salvo e retorna a URI do modelo no MLflow.
 
-  MODEL_URI = f"runs:/{RUN_ID}/{params['model_name']}"
-  print(f'\n\nModel URI: {MODEL_URI}\n\n')
+    Abre o arquivo `last_run_id.txt`, lê o identificador do último run
+    e monta a URI do modelo no formato aceito pelo MLflow.
 
-  mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
-  print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
-  
-  return RUN_ID, MODEL_URI
+    Returns:
+        tuple[str, str]: `(run_id, model_uri)`
+    """
+    with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
+        RUN_ID = arquivo.read()
+
+    MODEL_URI = f"runs:/{RUN_ID}/{params['model_name']}"
+    print(f'\n\nModel URI: {MODEL_URI}\n\n')
+
+    mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
+    print(f"MLFlow Tracking URI configurado para: {params['mlflow_tracking_uri']}")
+    
+    return RUN_ID, MODEL_URI
 
 def load_resources(ticker):
+    """Carrega o modelo e o scaler para o `ticker` fornecido.
+
+    Args:
+        ticker (str): Símbolo da ação (p.ex. 'AAPL' ou 'PETR4.SA').
+
+    Returns:
+        tuple: `(model, scaler)` prontos para inferência.
+    """
     if '.' in ticker:
         ticker = ticker.replace('.', '_')
 
@@ -60,6 +76,17 @@ def load_resources(ticker):
     return model, scaler
 
 def should_retrain_model(ticker):
+    """Verifica se já existe um modelo treinado para o `ticker`.
+
+    Procura por arquivos em `model_files` cujo prefixo corresponda ao
+    ticker solicitado.
+
+    Args:
+        ticker (str): Símbolo da ação.
+
+    Returns:
+        bool: `False` se o modelo existir, `True` caso contrário.
+    """
     for model in os.listdir('model_files'):
         file_ticker = model.split('_')[0]
         real_ticker = ticker.split('.')[0]
@@ -72,6 +99,17 @@ def should_retrain_model(ticker):
     return True    
 
 def retrain_if_needed(ticker):
+    """Re-treina o modelo para o `ticker` se não houver um modelo local.
+
+    Se já existir um modelo em `model_files`, apenas carrega os recursos.
+    Caso contrário, executa `train_model` e retorna o `run_id` criado.
+
+    Args:
+        ticker (str): Símbolo da ação.
+
+    Returns:
+        tuple: `(retrained (bool), run_id_or_None, model, scaler)`.
+    """
     if not should_retrain_model(ticker = ticker):
         model, scaler = load_resources(ticker)
         return False, None, model, scaler
@@ -83,6 +121,7 @@ def retrain_if_needed(ticker):
 
 @app.route('/')
 def home():
+    """Rota raiz que renderiza a página inicial do frontend."""
     return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
@@ -96,9 +135,17 @@ def health():
         
     return jsonify(health_status), 200
     
+"""Rota de saúde da API que retorna o status e artefatos carregados."""
+    
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
     global ticker
+    """Endpoint `/predict` que recebe um JSON com o ticker e retorna previsões.
+
+    Espera um payload JSON com a chave `ticker`. Garante que o modelo
+    esteja disponível (re-treinando se necessário), baixa dados históricos,
+    prepara os tensores, realiza inferência e devolve as previsões desscaladas.
+    """
 
     try:
         model, scaler = load_resources(ticker)
