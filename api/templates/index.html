@@ -12,9 +12,10 @@
     <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700">
         <h1 class="text-2xl font-bold mb-6 text-white text-center">Previsão de Ações</h1>
         
-        <!-- Área de Mensagens -->
+        <!-- Área de Mensagens e Logs (Onde o link do MLFlow aparecerá) -->
         <div id="statusArea" class="hidden mb-6 p-4 rounded-lg bg-blue-900/30 border border-blue-500/50 text-sm">
-            <p id="statusMessage" class="text-blue-200 font-medium"></p>
+            <p id="statusMessage" class="text-blue-200 mb-2 font-medium"></p>
+            <a id="mlflowLink" href="#" target="_blank" class="text-blue-400 underline hover:text-blue-300 break-all hidden"></a>
         </div>
 
         <div class="flex gap-4 mb-8">
@@ -40,10 +41,19 @@
         const loader = document.getElementById('loader');
         const statusArea = document.getElementById('statusArea');
         const statusMessage = document.getElementById('statusMessage');
+        const mlflowLink = document.getElementById('mlflowLink');
 
-        function showStatus(msg) {
+        function showStatus(msg, url = null) {
             statusArea.classList.remove('hidden');
             statusMessage.innerText = msg;
+            
+            if (url) {
+                mlflowLink.href = url;
+                mlflowLink.innerText = "Acessar Log de Treinamento no MLFlow →";
+                mlflowLink.classList.remove('hidden');
+            } else {
+                mlflowLink.classList.add('hidden');
+            }
         }
 
         async function getPrediction() {
@@ -52,8 +62,10 @@
 
             if (!ticker) return alert("Digite um ticker.");
 
+            // Reset de interface
             btn.disabled = true;
             statusArea.classList.add('hidden');
+            mlflowLink.classList.add('hidden');
             loader.innerText = "Consultando o modelo...";
             loader.classList.remove('hidden');
 
@@ -68,6 +80,11 @@
 
                 if (response.ok) {
                     renderChart(data.ticker, data.predictions);
+                    
+                    // Verifica se o backend informou que houve retreino
+                    if (data.model_retrained && data.mlflow_link) {
+                        showStatus("Novo modelo treinado automaticamente!", data.mlflow_link);
+                    }
                 } else {
                     showStatus("Erro: " + (data.error || "Falha na requisição"));
                 }
@@ -82,7 +99,6 @@
         function renderChart(ticker, predictions) {
             const ctx = document.getElementById('predictionChart').getContext('2d');
             
-            // Gerar as datas começando de amanhã
             const labels = predictions.map((_, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() + (i + 1));
