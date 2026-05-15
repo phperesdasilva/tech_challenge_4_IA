@@ -1,4 +1,7 @@
-# tech_challenge_4_IA
+# Tech Challenge 4 - LSTM Stock Preditcion
+***Pedro H. P. da Silva - RM366780***  
+***Felipe O. Gonçalves  - RM367754***
+##
 
 **Visão geral**
 - **Descrição**: Projeto de previsão de preços de ações usando um modelo LSTM em PyTorch. Fornece uma API Flask que aceita um `ticker` e retorna previsões para os próximos dias. Inclui scripts para treinar modelos, salvar pesos e escalers, e registrar execuções no MLflow.
