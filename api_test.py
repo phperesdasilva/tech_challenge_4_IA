@@ -5,12 +5,11 @@ import matplotlib.pyplot as plt
 
 # Configurações da API
 API_URL = "http://localhost:5000/predict"
-TICKER = "PETR4.SA"
 
-def test_prediction():
-    payload = {"ticker": TICKER}
+def test_prediction(ticker):
+    payload = {"ticker": ticker}
     
-    print(f"Enviando requisição para {TICKER}...")
+    print(f"Enviando requisição para {ticker}...")
     
     try:
         response = requests.post(API_URL, json=payload)
@@ -20,7 +19,7 @@ def test_prediction():
             predictions = data['predictions']
             
             print("\n✅ Sucesso!")
-            print(f"Ticker: {data['ticker']}")
+            print(f"ticker: {data['ticker']}")
             print(f"Previsões para os próximos 15 dias:")
             for i, price in enumerate(predictions, 1):
                 print(f"Dia {i:02d}: R$ {price:.2f}")
@@ -59,7 +58,5 @@ def should_retrain_model(ticker):
 
 
 if __name__ == "__main__":
-    # test_prediction()
-    from model.model_trainer import train_model
-    train_model('PETR4.SA')
-    print(should_retrain_model('PETR4.SA'))
+    test_prediction("DIS")
+    
