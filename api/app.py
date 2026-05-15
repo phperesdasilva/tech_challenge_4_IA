@@ -15,6 +15,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+# Configuração inicial do Swagger
 swagger = Swagger(app, template={
     "info": {
         "title": "Stock Prediction API",
@@ -29,14 +30,6 @@ RETRAIN_AFTER_DAYS = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_mlflow_info():
-    """Lê o último `run_id` salvo e retorna a URI do modelo no MLflow.
-
-    Abre o arquivo `last_run_id.txt`, lê o identificador do último run
-    e monta a URI do modelo no formato aceito pelo MLflow.
-
-    Returns:
-        tuple[str, str]: `(run_id, model_uri)`
-    """
     with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
         RUN_ID = arquivo.read()
 
@@ -49,14 +42,6 @@ def get_mlflow_info():
     return RUN_ID, MODEL_URI
 
 def load_resources(ticker):
-    """Carrega o modelo e o scaler para o `ticker` fornecido.
-
-    Args:
-        ticker (str): Símbolo da ação (p.ex. 'AAPL' ou 'PETR4.SA').
-
-    Returns:
-        tuple: `(model, scaler)` prontos para inferência.
-    """
     if '.' in ticker:
         ticker = ticker.replace('.', '_')
 
@@ -76,17 +61,6 @@ def load_resources(ticker):
     return model, scaler
 
 def should_retrain_model(ticker):
-    """Verifica se já existe um modelo treinado para o `ticker`.
-
-    Procura por arquivos em `model_files` cujo prefixo corresponda ao
-    ticker solicitado.
-
-    Args:
-        ticker (str): Símbolo da ação.
-
-    Returns:
-        bool: `False` se o modelo existir, `True` caso contrário.
-    """
     for model in os.listdir('model_files'):
         file_ticker = model.split('_')[0]
         real_ticker = ticker.split('.')[0]
@@ -99,17 +73,6 @@ def should_retrain_model(ticker):
     return True    
 
 def retrain_if_needed(ticker):
-    """Re-treina o modelo para o `ticker` se não houver um modelo local.
-
-    Se já existir um modelo em `model_files`, apenas carrega os recursos.
-    Caso contrário, executa `train_model` e retorna o `run_id` criado.
-
-    Args:
-        ticker (str): Símbolo da ação.
-
-    Returns:
-        tuple: `(retrained (bool), run_id_or_None, model, scaler)`.
-    """
     if not should_retrain_model(ticker = ticker):
         model, scaler = load_resources(ticker)
         return False, None, model, scaler
@@ -121,46 +84,124 @@ def retrain_if_needed(ticker):
 
 @app.route('/')
 def home():
-    """Rota raiz que renderiza a página inicial do frontend."""
+    """
+    Renderiza a página inicial do frontend da aplicação.
+    ---
+    tags:
+      - Interface Web
+    responses:
+      200:
+        description: Página HTML inicial carregada com sucesso.
+        content:
+          text/html:
+            schema:
+              type: string
+              example: "<!DOCTYPE html><html>...</html>"
+    """
     return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
 def health():
+    """
+    Verifica o status de saúde da API e dos recursos de hardware.
+    ---
+    tags:
+      - Monitoramento
+    responses:
+      200:
+        description: API está saudável e operacional.
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            device:
+              type: string
+              example: "cuda"
+    """
     health_status = {
         "status": "healthy",
-        "device": str(device),
-        "model_loaded": model is not None,
-        "scaler_loaded": scaler is not None
+        "device": str(device)
     }
-        
     return jsonify(health_status), 200
-    
-"""Rota de saúde da API que retorna o status e artefatos carregados."""
     
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
-    global ticker
-    """Endpoint `/predict` que recebe um JSON com o ticker e retorna previsões.
-
-    Espera um payload JSON com a chave `ticker`. Garante que o modelo
-    esteja disponível (re-treinando se necessário), baixa dados históricos,
-    prepara os tensores, realiza inferência e devolve as previsões desscaladas.
     """
-
+    Realiza a previsão de preço de fechamento de uma ação para os próximos dias.
+    ---
+    tags:
+      - Predição
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - ticker
+          properties:
+            ticker:
+              type: string
+              description: O símbolo da ação (ex. AAPL, PETR4.SA).
+              example: "AAPL"
+    responses:
+      200:
+        description: Previsões geradas com sucesso.
+        schema:
+          type: object
+          properties:
+            ticker:
+              type: string
+              example: "AAPL"
+            predictions:
+              type: array
+              items:
+                type: number
+              example: [180.25, 181.40, 182.10]
+            model_retrained:
+              type: boolean
+              example: true
+            run_id:
+              type: string
+              example: "abc123xyz"
+            mlflow_link:
+              type: string
+              example: "http://localhost:3050/#/experiments/0/runs/abc123xyz"
+      400:
+        description: Requisição inválida (ex. Ticker ausente).
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Ticker não fornecido"
+      404:
+        description: Ticker não encontrado no Yahoo Finance.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Ticker não encontrado ou sem dados"
+      500:
+        description: Erro interno no servidor.
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+    """
     try:
-        model, scaler = load_resources(ticker)
-    except Exception as e:
-        print(f"Erro ao carregar modelo ou scaler: {e}")
-    
-    try:
-
-        content = request.json
+        content = request.json or {}
         ticker = content.get('ticker')
-
-        retrained, run_id, model, scaler = retrain_if_needed(ticker)
         
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400
+
+        # O bloco de retreino já resolve o carregamento interno do modelo e scaler
+        retrained, run_id, model, scaler = retrain_if_needed(ticker)
 
         data = yf.download(ticker, period="5y")
         if data.empty:
@@ -188,7 +229,7 @@ def predict_next_days():
             response["run_id"] = run_id
             response["mlflow_link"] = f"http://localhost:3050/#/experiments/0/runs/{run_id}"
             
-        return jsonify(response)
+        return jsonify(response), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
