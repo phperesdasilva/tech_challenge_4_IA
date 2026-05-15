@@ -10,6 +10,18 @@ from torch.utils.data import TensorDataset,DataLoader
 from api.global_params import params
 
 def train_model(ticker):
+    """Treina um modelo LSTM para o `ticker` fornecido e registra no MLflow.
+
+    O fluxo inclui:
+    - download dos dados via `DatasetManager`;
+    - pré-processamento e normalização;
+    - criação das sequências de treino/teste;
+    - definição do modelo, loop de treino e logging no MLflow;
+    - avaliação no conjunto de teste e salvamento do modelo/metrics.
+
+    Args:
+        ticker (str): Símbolo da ação a ser treinada (p.ex. 'AAPL' ou 'PETR4.SA').
+    """
     mlflow.set_tracking_uri(params['mlflow_tracking_uri'])
 
     years = 5
