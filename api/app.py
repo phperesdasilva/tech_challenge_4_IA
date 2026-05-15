@@ -25,6 +25,8 @@ swagger = Swagger(app, template={
 LAST_RUN_DATE_FILE = "last_run_date.txt"
 RETRAIN_AFTER_DAYS = 1
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def get_mlflow_info():
   with open("last_run_id.txt", "r", encoding="utf-8") as arquivo:
       RUN_ID = arquivo.read()
@@ -37,30 +39,7 @@ def get_mlflow_info():
   
   return RUN_ID, MODEL_URI
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def should_retrain_model(days_threshold=RETRAIN_AFTER_DAYS):
-    try:
-        with open(LAST_RUN_DATE_FILE, "r", encoding="utf-8") as file:
-            last_run_date_str = file.read().strip()
-    except OSError:
-        print("Arquivo de data de treino nao encontrado. Treinando modelo.")
-        return True
-
-    if not last_run_date_str:
-        print("Arquivo de data de treino vazio. Treinando modelo.")
-        return True
-
-    try:
-        last_run_date = datetime.fromisoformat(last_run_date_str)
-    except ValueError:
-        print("Data de treino invalida. Treinando modelo.")
-        return True
-
-    return datetime.now() - last_run_date >= timedelta(days=days_threshold)
-
-def load_resources():
+def load_resources(ticker):
     # try:
     #   model = mlflow.pytorch.load_model(MODEL_URI, map_location=device)
     #   print("Modelo carregado do servidor MLFlow.")
@@ -73,30 +52,52 @@ def load_resources():
         output_size=params['prediction_period'],
         dropout=params['dropout']
     ).to(device)
-    model.load_state_dict(torch.load(params['model_path'], map_location=device))
+    model_file = f'model_files/{ticker}_{params['model_path']}'
+    model.load_state_dict(torch.load(model_file, map_location=device))
     model.to(device)
     model.eval()
     print("Modelo carregado localmente.")
     scaler = joblib.load(params['scaler_path'])
     return model, scaler
 
+def should_retrain_model(days_threshold=RETRAIN_AFTER_DAYS, ticker=None):
+    try:
+        with open(LAST_RUN_DATE_FILE, "r", encoding="utf-8") as file:
+            last_run_date_str = file.read().strip()
+    except OSError:
+        print("Arquivo de data de treino nao encontrado. Treinando modelo.")
+        return True
+
+    if not last_run_date_str:
+        print("Arquivo de data de treino vazio. Treinando modelo.")
+        return True
+
+    try:   
+        last_run_date = datetime.fromisoformat(last_run_date_str)
+        print(last_run_date)
+        print(last_run_date_str)
+        print(ticker)
+    except ValueError:
+        print("Data de treino invalida. Treinando modelo.")
+        return True
+
+    return datetime.now() - last_run_date >= timedelta(days=days_threshold)
+
+
 
 def retrain_if_needed(ticker):
     global model, scaler
 
-    if not should_retrain_model():
+    if not should_retrain_model(ticker = ticker):
         return False, None
 
     train_model(ticker)
-    model, scaler = load_resources()
+    model, scaler = load_resources(ticker)
     run_id, _ = get_mlflow_info()
     return True, run_id
 
-model, scaler = load_resources()
-
 @app.route('/')
 def home():
-  
     return render_template('index.html')
 
 @app.route('/health', methods=['GET'])
@@ -170,6 +171,8 @@ def predict_next_days():
       500:
         description: Erro interno no processamento ou carregamento do modelo.
     """
+    global ticker
+    
     try:
         
         try:
@@ -181,7 +184,7 @@ def predict_next_days():
 
         content = request.json
         ticker = content.get('ticker')
-        
+
         retrained, run_id = retrain_if_needed(ticker)
         
         if not ticker:
@@ -231,9 +234,9 @@ def train():
         description: Erro interno durante o processo de treinamento.
     """
     try:
-        global model, scaler
+        global model, scaler, ticker
         train_model(ticker)
-        model, scaler = load_resources()
+        model, scaler = load_resources(ticker)
         RUN_ID, _ = get_mlflow_info()
         mlflow_link = f"http://localhost:3050/#/experiments/0/runs/{RUN_ID}"
         return jsonify({"message": f"Treinamento finalizado com sucesso. Log: {mlflow_link}"}), 200
