@@ -28,7 +28,7 @@
         </div>
 
         <div id="loader" class="hidden text-center text-blue-400 font-semibold mb-4 animate-pulse">
-            Processando requisição...
+            Verificando status do modelo...
         </div>
 
         <div class="relative h-80 w-full bg-gray-900/50 rounded-lg p-2">
@@ -66,8 +66,16 @@
             btn.disabled = true;
             statusArea.classList.add('hidden');
             mlflowLink.classList.add('hidden');
+            
+            // Mensagem inicial neutra enquanto aguarda o primeiro contato com a API
             loader.innerText = "Consultando o modelo...";
             loader.classList.remove('hidden');
+
+            // Dispara o timer: se a API demorar mais de 2 segundos para responder, 
+            // assume-se que o backend disparou o pipeline de treinamento do LSTM.
+            const trainingTimer = setTimeout(() => {
+                loader.innerText = "Treinando o modelo...";
+            }, 2000); 
 
             try {
                 const response = await fetch('/predict', {
@@ -76,6 +84,9 @@
                     body: JSON.stringify({ ticker: ticker })
                 });
 
+                // Cancela o temporizador se a resposta chegou antes do tempo limite
+                clearTimeout(trainingTimer); 
+
                 const data = await response.json();
 
                 if (response.ok) {
@@ -83,12 +94,13 @@
                     
                     // Verifica se o backend informou que houve retreino
                     if (data.model_retrained && data.mlflow_link) {
-                        showStatus("Novo modelo treinado automaticamente!", data.mlflow_link);
+                        showStatus("Modelo treinado com sucesso.", data.mlflow_link);
                     }
                 } else {
                     showStatus("Erro: " + (data.error || "Falha na requisição"));
                 }
             } catch (error) {
+                clearTimeout(trainingTimer);
                 showStatus("Erro de conexão com a API.");
             } finally {
                 btn.disabled = false;
