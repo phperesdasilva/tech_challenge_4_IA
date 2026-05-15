@@ -1,3 +1,5 @@
+import os
+
 import requests
 import matplotlib.pyplot as plt
 
@@ -43,7 +45,21 @@ def plot_results(preds, ticker):
     plt.legend()
     plt.show()
 
+def should_retrain_model(ticker):
+    for model in os.listdir('model_files'):
+        file_ticker = model.split('_')[0]
+        real_ticker = ticker.split('.')[0]
+
+        if file_ticker == real_ticker:
+            print('Model found in model_files')
+            return False
+        
+    print('Model not found in model_files')
+    return True  
+
+
 if __name__ == "__main__":
     # test_prediction()
     from model.model_trainer import train_model
-    train_model('MSFT')
+    train_model('PETR4.SA')
+    print(should_retrain_model('PETR4.SA'))

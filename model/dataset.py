@@ -45,9 +45,11 @@ class DatasetManager:
         
         if '.' in self.tickers:
             ticker = self.tickers.replace('.', '_')
+        else:
+            ticker = self.tickers
 
-        scales_file = f'scales_files/{ticker}_{params['scaler_path']}'
-        joblib.dump(self.scaler, params['scaler_path'])
+        scaler_file = f'scales_files/{ticker}_{params['scaler_path']}'
+        joblib.dump(self.scaler, scaler_file)
         return y_train_scaled, y_test_scaled
     
     def get_features(self, df):

@@ -41,11 +41,9 @@ def get_mlflow_info():
   return RUN_ID, MODEL_URI
 
 def load_resources(ticker):
-    # try:
-    #   model = mlflow.pytorch.load_model(MODEL_URI, map_location=device)
-    #   print("Modelo carregado do servidor MLFlow.")
-    # except Exception as e:
-    #   print(f"Erro ao carregar o modelo do servidor MLFlow: {e}")
+    if '.' in ticker:
+        ticker = ticker.replace('.', '_')
+
     model = StockLSTM(
         input_size=1, 
         hidden_size=params['hidden_size'], 
@@ -70,6 +68,8 @@ def should_retrain_model(ticker):
         if file_ticker == real_ticker:
             print('Model found in model_files')
             return False
+        
+    print('Model not found in model_files')
     return True    
 
 def retrain_if_needed(ticker):
