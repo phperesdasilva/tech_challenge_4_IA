@@ -81,7 +81,14 @@
 
         function renderChart(ticker, predictions) {
             const ctx = document.getElementById('predictionChart').getContext('2d');
-            const labels = predictions.map((_, i) => `Dia ${i + 1}`);
+            
+            // Gerar as datas começando de amanhã
+            const labels = predictions.map((_, i) => {
+                const date = new Date();
+                date.setDate(date.getDate() + (i + 1));
+                return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            });
+
             if (stockChart) stockChart.destroy();
 
             Chart.defaults.color = '#9ca3af';
@@ -104,12 +111,25 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => `Data: ${context[0].label}`
+                            }
+                        }
+                    },
                     scales: {
                         y: { 
                             grid: { color: '#374151' }, 
                             ticks: { callback: v => 'R$ ' + v.toFixed(2) } 
                         },
-                        x: { grid: { display: false } }
+                        x: { 
+                            grid: { display: false },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
                     }
                 }
             });
