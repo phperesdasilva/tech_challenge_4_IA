@@ -41,6 +41,7 @@ def get_mlflow_info():
   return RUN_ID, MODEL_URI
 
 def load_resources(ticker):
+    global model, scaler
     if '.' in ticker:
         ticker = ticker.replace('.', '_')
 
@@ -55,9 +56,8 @@ def load_resources(ticker):
     model.load_state_dict(torch.load(model_file, map_location=device))
     model.to(device)
     model.eval()
-    print("Modelo carregado localmente.")
-    scales_file = f'scales_files/{ticker}_{params['scaler_path']}'
-    scaler = joblib.load(scales_file)
+    scaler_file = f'scaler_files/{ticker}_{params['scaler_path']}'
+    scaler = joblib.load(scaler_file)
     return model, scaler
 
 def should_retrain_model(ticker):
@@ -95,25 +95,25 @@ def health():
         "model_loaded": model is not None,
         "scaler_loaded": scaler is not None
     }
-    
-    if not model or not scaler:
-        health_status["status"] = "unhealthy"
-        return jsonify(health_status), 503
         
     return jsonify(health_status), 200
     
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
+
     global ticker
+
+    try:
+        model, scaler = load_resources(ticker)
+    except Exception as e:
+        print(f"Erro ao carregar modelo ou scaler: {e}")
     
     try:
+
         content = request.json
         ticker = content.get('ticker')
 
         retrained, run_id = retrain_if_needed(ticker)
-
-        if not retrained:
-            model, scaler = load_resources(ticker)
         
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400

@@ -48,7 +48,7 @@ class DatasetManager:
         else:
             ticker = self.tickers
 
-        scaler_file = f'scales_files/{ticker}_{params['scaler_path']}'
+        scaler_file = f'scaler_files/{ticker}_{params['scaler_path']}'
         joblib.dump(self.scaler, scaler_file)
         return y_train_scaled, y_test_scaled
     
