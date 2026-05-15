@@ -41,7 +41,6 @@ def get_mlflow_info():
   return RUN_ID, MODEL_URI
 
 def load_resources(ticker):
-    global model, scaler
     if '.' in ticker:
         ticker = ticker.replace('.', '_')
 
@@ -73,15 +72,14 @@ def should_retrain_model(ticker):
     return True    
 
 def retrain_if_needed(ticker):
-    global model, scaler
-
     if not should_retrain_model(ticker = ticker):
-        return False, None
+        model, scaler = load_resources(ticker)
+        return False, None, model, scaler
 
     train_model(ticker)
     model, scaler = load_resources(ticker)
     run_id, _ = get_mlflow_info()
-    return True, run_id
+    return True, run_id, model, scaler
 
 @app.route('/')
 def home():
@@ -100,7 +98,6 @@ def health():
     
 @app.route('/predict', methods=['POST'])
 def predict_next_days():
-
     global ticker
 
     try:
@@ -113,7 +110,7 @@ def predict_next_days():
         content = request.json
         ticker = content.get('ticker')
 
-        retrained, run_id = retrain_if_needed(ticker)
+        retrained, run_id, model, scaler = retrain_if_needed(ticker)
         
         if not ticker:
             return jsonify({"error": "Ticker não fornecido"}), 400
@@ -142,7 +139,6 @@ def predict_next_days():
         if retrained:
             response["model_retrained"] = True
             response["run_id"] = run_id
-            response["retrain_message"] = f"Modelo retreinado automaticamente: passaram-se {diff_days} dias desde o último treino."
             response["mlflow_link"] = f"http://localhost:3050/#/experiments/0/runs/{run_id}"
             
         return jsonify(response)
